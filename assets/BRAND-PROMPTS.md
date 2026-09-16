@@ -26,24 +26,41 @@ después; en los logo-first el texto va EN el prompt).
 
 # A. WORDMARK — el logo protagonista
 
-## A1. Title sequence (la visión: negro, bech32 lluvia, azar mutante)
-> Minimal title card on pure black void — no monitor, no frame, no room,
-> the screen IS the world, CRT phosphor rendering felt directly by the eye.
-> A sparse rain of tiny lowercase monospace characters from the set
-> qpzry9x8gf2tvdw0s3jn54khce6mua7l drifts on the blackness like faint
-> stars. Center, large and dominant, the word **azar** in lowercase
-> monospace, glowing phosphor green #3ddc84; several of its letters are
-> caught mid-mutation, flickering into other bech32 glyphs (q, p, z, r, y,
-> 9, x, 8...) with subtle ghost-trails, as if the message is still
-> deciding what it wants to be. A faint geometric grid pattern — thin
-> concentric rounded squares — barely visible behind the word, revealing
-> structure like a checksum matrix. Heavy scanlines, screen-door pixel
-> texture, gentle phosphor bloom. Asymmetric composition, word slightly
-> off-center. Mood: a cryptography film opening frame.
+## A1. Title sequence — dense bech32 lattice (v3: DENSO, ámbar, sin room)
+> Cinematic film still, 2.39:1 anamorphic — the opening frame of a
+> cryptography thriller. A pure black CRT screen fills the ENTIRE frame:
+> no monitor, no bezel, no room, the phosphor surface IS the world. The
+> whole surface is wallpapered with a dense, perfectly aligned square
+> lattice of tiny lowercase monospace glyphs from the set
+> qpzry9x8gf2tvdw0s3jn54khce6mua7l — exactly one character per cell,
+> thousands of cells, tight uniform spacing, running edge to edge with
+> no margins. Deep AMBER phosphor (#ffb000) on near-black — warm, never
+> green. At the exact center of the lattice, four cells burn far
+> brighter than everything else, spelling the word **azar** in the same
+> monospace — the only word on screen, wrapped in a halo of phosphor
+> bloom and slow afterglow persistence. A few lattice cells elsewhere
+> are caught mid-mutation: the previous glyph still visible as a dim
+> ghost under the new one, as if the message is still being revealed. A
+> faint geometric pattern — thin concentric rounded-square rings —
+> barely legible beneath the lattice, structuring the grid around the
+> bright word. Rich authentic CRT artifacts everywhere: horizontal
+> scanlines with alternating-line flicker, gentle pincushion curvature
+> at the frame edges, glass reflection sheen in one upper corner,
+> subtle interlace jitter, one random cell decaying mid-flicker,
+> vignette pulling the corners into darkness. Dense but perfectly
+> ordered — a Bletchley Park wall of intercepted traffic collapsed into
+> a single screen. The Imitation Game meets a signal-intelligence
+> console: technological, secretive, warm. Fine film grain over
+> everything; the bright word is the single focal point, all else is
+> living texture.
 
-Variaciones del mismo prompt: cambiar `phosphor green #3ddc84` por
-`amber #ffb000` o `cold paper white`; cambiar la retícula por `a single
-thin circle` o `diagonal hairlines`.
+Variaciones: fósforo blanco-papel frío en vez de ámbar · las 4 celdas
+centrales con un anillo geométrico propio · UNA celda del lattice en
+rojo tenue (la anomalía). Añadir `characters strictly from
+qpzry9x8gf2tvdw0s3jn54khce6mua7l` si el modelo respeta charset (Flux
+mejor que MJ). Magnific: creativity ≤ 2 y solo si conserva la legibilidad
+del centro; el lattice denso es lo primero que el upscale puede convertir
+en sopa.
 
 ## A2. Swiss poster (tipografía pura)
 > Flat Swiss International Style poster, enormous lowercase word **azar**
