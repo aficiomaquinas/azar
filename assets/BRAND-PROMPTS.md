@@ -1,92 +1,179 @@
-# azar — brand image prompt portfolio
+# azar — brand prompt portfolio (v2: logo-first)
 
+**Jerarquía: el logo/wordmark ES el sujeto; todo lo demás es atmósfera.**
 Workflow: generate (Midjourney/Flux/DALL-E) → Magnific (upscale, creativity
-LOW for fidelity) → add the "azar" wordmark LAST in Figma/Canva (AI models
-mangle spelled text; leave negative space in composition instead).
+baja para no alucinar letras) → si el modelo manglea el texto, componer el
+wordmark al final en Figma. Aspectos: social preview 1280x640 · banner
+~1200x400 · avatar 1:1.
 
-Aspect ratios: GitHub social preview 1280x640 · README banner ~1200x400 ·
-logo/avatar 1:1. Universal negative: `text, letters, watermark, logo,
-signature, extra fingers, jpeg artifacts`.
+Negative universal: `watermark, signature, extra fingers, jpeg artifacts`
+(el negative de `text, letters` SOLO en prompts donde el texto se compone
+después; en los logo-first el texto va EN el prompt).
+
+## Paleta canónica (variar entre estos 4 regimes)
+| Regime | Fondo | Tinta | Acento |
+|---|---|---|---|
+| **fósforo** | negro puro #000 | verde CRT #3ddc84 | ámbar #ffb000 |
+| **ámbar** | negro puro #000 | ámbar CRT #ffb000 | blanco cálido |
+| **papel** | off-white #f5f2ea | negro tinta | un solo rojo sello #c0392b |
+| **github-dark** | #0d1117 | #e6edf3 | azul #58a6ff + verde #7ee787 |
+
+## Tipografías a probar en los prompts
+`JetBrains Mono` · `IBM Plex Mono` · `Space Mono` · `Berkeley Mono` style ·
+`Departure Mono` (pixel) — siempre lowercase, tracking amplio.
 
 ---
 
-## 1. CRT terminal room (el aesthetic que pidió: código + bech32 + fósforo)
-> Vintage 1980s computer terminal room at night, a single CRT monitor
-> glowing phosphor green, rows of lowercase monospace characters raining
-> softly down the curved glass screen, heavy scanlines and screen-door
-> pixel texture, light bloom around the brightest glyphs, one lone
-> typist silhouette reflected in the glass, dust motes in the beam,
-> dark room lit only by the display. Shot on Kodak Portra 400, 35mm,
-> shallow depth of field. Mood: focused, analog, secretive.
-> Palette: black, phosphor green #3ddc84, amber accents.
-> Leave the lower third of the screen as soft empty glow (wordmark space).
+# A. WORDMARK — el logo protagonista
 
-## 2. Águila o sol — the volado (el volado que eligió el nombre)
-> Extreme high-speed photography of a golden coin spinning mid-air above
-> a sun-baked desert mesa at golden hour, frozen motion, dust particles
-> suspended around it, dramatic side light, sun eagle embossed on one
-> face catching the light, horizon low and vast. National Geographic
-> style, 300mm lens, razor-thin focal plane on the coin. Mood: fate
-> suspended, decisive moment. Warm ochre + gold palette.
-> The coin face is blank polished metal (no text).
+## A1. Title sequence (la visión: negro, bech32 lluvia, azar mutante)
+> Minimal title card on pure black void — no monitor, no frame, no room,
+> the screen IS the world, CRT phosphor rendering felt directly by the eye.
+> A sparse rain of tiny lowercase monospace characters from the set
+> qpzry9x8gf2tvdw0s3jn54khce6mua7l drifts on the blackness like faint
+> stars. Center, large and dominant, the word **azar** in lowercase
+> monospace, glowing phosphor green #3ddc84; several of its letters are
+> caught mid-mutation, flickering into other bech32 glyphs (q, p, z, r, y,
+> 9, x, 8...) with subtle ghost-trails, as if the message is still
+> deciding what it wants to be. A faint geometric grid pattern — thin
+> concentric rounded squares — barely visible behind the word, revealing
+> structure like a checksum matrix. Heavy scanlines, screen-door pixel
+> texture, gentle phosphor bloom. Asymmetric composition, word slightly
+> off-center. Mood: a cryptography film opening frame.
 
-## 3. La fortuna — baroque still life (los aliases: ficha, gettone, dado)
-> Caravaggio-style chiaroscuro still life on a dark oak table: an
-> antique brass roulette wheel section, worn ivory dice, brass payphone
-> tokens and clay gaming chips scattered mid-tumble, a single beam of
-> window light carving the objects out of blackness, oil-on-canvas
-> texture with visible brushwork, deep umber and candle-gold palette.
-> Museum macro photography of a 17th-century painting. Mood: gravity,
-> old-world chance, quiet drama.
+Variaciones del mismo prompt: cambiar `phosphor green #3ddc84` por
+`amber #ffb000` o `cold paper white`; cambiar la retícula por `a single
+thin circle` o `diagonal hairlines`.
 
-## 4. El precinto — wax seal macro (checksum = tamper-evident)
-> Extreme macro photography of molten dark-red sealing wax being stamped
-> with a brass monogram die, fine Security-pattern guilloche paper
-> underneath, wax threads and droplets frozen mid-splash, single hard
-> key light, razor micro-contrast, museum conservation photography.
-> Palette: oxblood wax, aged paper cream, brass. Mood: tamper-evident,
-> official, intimate. The die face is a simple abstract glyph (no letters).
+## A2. Swiss poster (tipografía pura)
+> Flat Swiss International Style poster, enormous lowercase word **azar**
+> set in JetBrains Mono filling 70% of the width, strict baseline grid,
+> one signal color (choose: #3ddc84 green on black / #c0392b red on
+> off-white), generous negative space, subtle risograph misregistration
+> and paper grain, tiny index line at the bottom margin reading
+> `a=29 z=2 r=3`. Nothing else.
 
-## 5. Kleroterion — the Athenian lottery machine (la historia profunda)
-> Museum photography of an ancient Greek stone allotment machine
-> (kleroterion): a weathered marble slab with a dense grid of slots,
-> small bronze tokens resting in some slots, dramatic single spotlight
-> in a dark gallery, long shadows, fine marble grain, 50mm perspective.
-> Mood: 2400 years of trusted randomness, civic gravity, timeless.
-> Palette: Pentelic marble ivory, deep shadow, one warm spotlight.
+## A3. Marca abstracta (el glyph, sin texto)
+> Minimalist logo mark on pure black: a single monospace lowercase glyph
+> "z" built from a 5x5 pixel grid, one pixel deliberately off (the
+> randomness), phosphor green with subtle CRT bloom, enclosed by a thin
+> rounded-square outline that is broken exactly where the off pixel
+> sits. Flat vector aesthetic, geometric, iconic, works at 16px favicon
+> and 512px. No text anywhere.
 
-## 6. Bola8 noir (el alias estrella)
-> Film-noir pool hall at 2am, a colossally oversized obsidian magic
-> 8-ball resting on felt, low-key lighting with a single overhead cone,
-> cigarette-smoke haze, rim light tracing the ball's curve, the number
-> eight as the only marking, green felt and black lacquer palette,
-> shot on Cinestill 800T with halation. Mood: ask, shake, receive.
-> Anamorphic 2.39:1 composition, ball off-center right.
+## A4. Acuñado — el nombre como objeto (letterpress del wordmark)
+> Extreme macro of a letterpress strike: fresh metal type blocks spelling
+> **azar** in lowercase mono, just pressed into thick cotton paper, deep
+> crisp emboss visible in raking light, ink still slightly wet and
+> glossy on the raised letters, paper fibers crushed around the
+> impression, one letter (the final r) struck slightly deeper than the
+> rest — imperfect, human. Single hard key light, museum conservation
+> photography. Mood: the word as minted object.
 
-## 7. Swiss type poster (la opción "logo limpio" renderizada)
-> Flat Swiss International Style poster: enormous lowercase monospace
-> word "azar" set in a strict grid, one signal color on off-white paper,
-> generous negative space below the word, subtle paper grain and ink
-> emboss texture, risograph print misregistration 1mm. No other elements
-> except a tiny index line at the bottom margin. Mood: precise, quiet,
-> confident. (Vector-clean render; this one CAN include the word —
-> single short lowercase word usually survives; regenerate if mangled.)
+## A5. Materia — el wordmark renderizado en materia (elegir una)
+> a) The word **azar** as massive extruded metal letters, raw machined
+>    aluminum with tooling marks, standing on dark studio floor, fog,
+>    single top light. Industrial, permanent.
+> b) The word **azar** carved deep into a block of dark marble, roman
+>    square proportions but monospace rhythm, dust in the grooves,
+>    raking light. 2400 years old, timeless.
+> c) The word **azar** as glowing glass neon tubes on black brick,
+>    warm amber gas, transformer hum implied, slight flicker captured
+>    mid-flicker. Nocturnal, honest.
 
-## 8. Zen entropy (el contrapunto minimal)
-> Wabi-sabi zen garden at dawn: raked gravel forming a perfect wave
-> pattern that terminates abruptly in a single carved stone die resting
-> off-grid, morning fog, moss, muted stone greys with one warm accent
-> of morning light. Medium-format film photography, painterly negative
-> space upper half. Mood: randomness accepted, stillness. Minimal,
-> contemplative.
+---
+
+# B. MASCOTA / PET (la parte simbólica)
+
+## B1. La gata agente del caos (recomendada: internet-native,熵 en patas)
+> A sleek black cat mid-pounce, one paw batting a small ivory die that
+> is tumbling in mid-air, motion blur only on the die, the cat in razor
+> focus with huge amplitude pupils, on a dark desk beside a keyboard,
+> single warm practical light. Studio pet photography, 85mm, shallow
+> depth of field. Mood: entropy has fur. The die shows a five.
+
+## B2. El coyote tramposo (identidad mexicana, hermano del águila o sol)
+> A desert coyote sitting perfectly still at dusk among creosote and
+> ocotillo, head slightly tilted, one eye catching the last sun, a
+> tarnished gold coin balanced on its nose, thorny shadows long on the
+> sand. Wildlife photography, 400mm, National Geographic tone. Mood:
+> the trickster deciding nothing, deciding everything.
+
+## B3. El axolote estocástico (tierno, raro, mexicano, meme-capaz)
+> A pale pink axolotl floating in dark still water, external gills
+> flared like a crown, tiny glass dice resting on the water surface
+> around it with soft reflections, single overhead light shaft, black
+> background. Aquarium macro photography. Mood: small, strange,
+> unbothered — randomness incarnate, cute.
+
+## B4. El pulpo de la bola ocho (nodo con bola8)
+> A small octopus in an ink-dark tank wrapping two arms around a classic
+> black 8-ball twice its size, sucker detail crisp, one siphon jet
+> blowing a soft cloud, deep teal water, single diver light. Underwater
+> macro. Mood: eight arms, eight ball, zero hesitation.
+
+---
+
+# C. ESCENA + LOGO INTEGRADO (el nombre acuñado dentro del mundo)
+
+## C1. El volado acuña el nombre (la escena de la moneda, logo-dentro)
+> High-speed macro of a golden coin frozen mid-spin over a dark felt
+> table, and embossed on its face, the lowercase word **azar** in crisp
+> monospace letterforms catching a blade of light, micro dust orbiting,
+> the edge of the coin motion-blurred. Chiaroscuro single key light.
+> The word is the hero of the frame, coin slightly tilted toward
+> camera. Mood: the name being minted by chance itself.
+
+## C2. El precinto con monograma
+> Macro of dark-red sealing wax mid-stamp, the brass die lowering into
+> the melt, and embossed into the cooling wax the word **azar** tiny
+> and perfect, wax threads frozen mid-splash over Security guilloche
+> paper. Oxblood + brass + cream. Mood: tamper-evident since the first
+> letter.
+
+## C3. El kleroterion entrega el nombre
+> Museum-dark gallery, an ancient Greek stone allotment machine with a
+> dense grid of slots, and one slot near the center glowing faint
+> phosphor green holding a small tile etched with the lowercase word
+> **azar**, long shadows, marble dust in the spotlight beam. Mood: 2400
+> years of lottery, and the stone finally speaks.
+
+## C4. Bola8 con inscripción
+> Film-noir pool hall, an obsidian 8-ball on green felt shot so close
+> the eight is out of frame, and lacquered onto the black surface in
+> thin white monospace inlay: **azar**, rim light tracing the curve,
+> Cinestill 800T halation, chalk dust in the air. Mood: ask the ball.
+
+---
+
+# D. ATMÓSFERA PURA (backdrops para componer el wordmark después)
+Estas NO llevan texto: son la capa de fondo. Componer `azar` encima
+en Figma con blending `screen`/`overlay`.
+
+## D1. Bech32 nebula
+> Pure black field with a faint constellation of tiny lowercase bech32
+> glyphs scattered like stars, denser toward the lower right, subtle
+> phosphor green nebula glow, heavy film grain, vignette. Nothing else.
+
+## D2. Fósforo pulse
+> Abstract black screen texture: soft bloom patches of phosphor green
+> and amber light, scanline interference waves, CRT degauss wobble
+> frozen, no characters at all, pure emission. For compositing.
+
+## D3. felt & smoke
+> Dark pool-hall felt under a single overhead cone, chalk dust and
+> cigarette haze, deep green-black gradient, anamorphic flare hint.
+> Empty stage for a wordmark.
 
 ---
 
 ## Notas de uso
-- Para banners CON texto: usar #7 (o componer texto después sobre #1-#6).
-- Magnific: preset "Sparkle" o "Illusio" suave, creativity ≤ 3 para no
-  inventar texto; upscale 2x basta para GitHub (1280px ya es nativo).
-- El estilo CRT (#1) acepta variación: fósforo ámbar en vez de verde
-  (más distintivo que el verde Matrix-cliché), o el charset bech32
-  explícito en el prompt si el modelo lo respeta: "characters from the
-  set qpzry9x8gf2tvdw0s3jn54khce6mua7l" (funciona en Flux mejor que en MJ).
+- Orden sugerido de prueba: A1 (identidad) → B1 o B3 (mascota) → C1
+  (social preview) → D1 como backdrop de README.
+- Magnific (cuando esté el MCP): creativity ≤ 3, upscale 2x. En piezas
+  A* con texto, Magnific SOLO en el fondo (enmascarar las letras) o
+  riesgo de alucinación tipográfica.
+- Si el modelo respeta charset: añadir `characters strictly from
+  qpzry9x8gf2tvdw0s3jn54khce6mua7l` (Flux obedece mejor que MJ).
+- El wordmark SIEMPRE lowercase, SIEMPRE monospace: es output válido del
+  propio tool — esa es la identidad.
