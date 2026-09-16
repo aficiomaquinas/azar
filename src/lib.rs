@@ -36,6 +36,8 @@ pub enum Error {
     BadPrefix(String),
     /// bech32 classic has no bare form (BIP-173 requires an HRP).
     NoBareForClassic,
+    /// randbetween bounds inverted (min > max).
+    RangeInvalid { min: i64, max: i64 },
     /// OS entropy source failed.
     Entropy(String),
 }
@@ -63,6 +65,9 @@ impl fmt::Display for Error {
                 f,
                 "format bech32 (classic) has no bare form; use -P <prefix> or format bech32m"
             ),
+            Error::RangeInvalid { min, max } => {
+                write!(f, "invalid range: min {min} > max {max}")
+            }
             Error::Entropy(e) => write!(f, "entropy error: {e}"),
         }
     }
@@ -75,6 +80,37 @@ fn entropy_bytes(n: usize) -> Result<Vec<u8>, Error> {
     let mut buf = vec![0u8; n];
     getrandom::fill(&mut buf).map_err(|e| Error::Entropy(e.to_string()))?;
     Ok(buf)
+}
+
+/// One fair coin flip from the OS CSPRNG: 50/50, no modulo bias.
+#[must_use]
+pub fn flip() -> bool {
+    let mut b = [0u8; 1];
+    getrandom::fill(&mut b).expect("CSPRNG unavailable");
+    b[0] & 1 == 1
+}
+
+/// Uniform random integer in [`min`, `max`] INCLUSIVE, via rejection
+/// sampling on the raw CSPRNG byte stream: values outside the largest
+/// multiple of `range` are discarded, so `v % range` is never applied to
+/// a biased window. Complexity: expected < 2 draws.
+pub fn rand_between(min: i64, max: i64) -> Result<i64, Error> {
+    if min > max {
+        return Err(Error::RangeInvalid { min, max });
+    }
+    let range = (i128::from(max) - i128::from(min) + 1) as u128; // 1..=2^64
+    let bits = u128::BITS - range.leading_zeros();
+    let nbytes = usize::try_from(bits).unwrap_or(128).div_ceil(8).max(1);
+    let zone = (1u128 << (nbytes * 8)) / range * range; // largest uniform multiple
+    loop {
+        let mut buf = vec![0u8; nbytes];
+        getrandom::fill(&mut buf).map_err(|e| Error::Entropy(e.to_string()))?;
+        let v = buf.iter().fold(0u128, |acc, &b| (acc << 8) | u128::from(b));
+        if v < zone {
+            let r = i128::from(min) + i128::try_from(v % range).unwrap_or_default();
+            return Ok(i64::try_from(r).expect("result within [min, max]"));
+        }
+    }
 }
 
 /// Structural overhead for a checksummed identifier: HRP + separator + 6.
@@ -314,6 +350,25 @@ mod tests {
         for n in [2, 3, 5, 7, 8] {
             let s = base32_plain(n).unwrap();
             assert_eq!(s.chars().count(), n);
+        }
+    }
+
+    #[test]
+    fn rand_between_bounds_and_bias_guard() {
+        // single-point range always returns the point
+        for _ in 0..50 {
+            assert_eq!(rand_between(7, 7).unwrap(), 7);
+        }
+        // every draw inside [min, max], negative ranges included
+        for _ in 0..500 {
+            let v = rand_between(-3, 9).unwrap();
+            assert!((-3..=9).contains(&v));
+        }
+        // inverted bounds are a clean error
+        assert!(rand_between(5, 1).is_err());
+        // full-range sanity on a big window
+        for _ in 0..100 {
+            let _v = rand_between(i64::MIN, i64::MAX).unwrap();
         }
     }
 

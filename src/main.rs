@@ -84,6 +84,22 @@ struct Cli {
     /// print the story behind each canonical alias name and exit
     #[arg(long)]
     lore: bool,
+
+    /// one fair coin flip: prints "true" or "false" (bash-native — usable
+    /// directly in if/&&/||). See README for piping examples.
+    #[arg(long)]
+    flip: bool,
+
+    /// uniform random integer in [MIN, MAX] inclusive (rejection-sampled,
+    /// no modulo bias): randid -R 1 6. Negative bounds OK.
+    #[arg(
+        short = 'R',
+        long,
+        num_args = 2,
+        value_names = ["MIN", "MAX"],
+        allow_negative_numbers = true
+    )]
+    randbetween: Option<Vec<i64>>,
 }
 
 fn main() {
@@ -91,6 +107,26 @@ fn main() {
 
     if cli.lore {
         print!("{}", lore_text());
+        return;
+    }
+
+    if cli.flip {
+        println!("{}", flip_str(randid::flip()));
+        return;
+    }
+
+    if let Some(bounds) = &cli.randbetween {
+        if bounds.len() != 2 {
+            eprintln!("randid: --randbetween needs exactly MIN and MAX");
+            std::process::exit(1);
+        }
+        match randid::rand_between(bounds[0], bounds[1]) {
+            Ok(v) => println!("{v}"),
+            Err(e) => {
+                eprintln!("randid: {e}");
+                std::process::exit(1);
+            }
+        }
         return;
     }
 
@@ -252,6 +288,15 @@ fn lore_text() -> String {
     out
 }
 
+/// Bash-native boolean spelling: the exact strings `test`/`if` consume.
+fn flip_str(v: bool) -> &'static str {
+    if v {
+        "true"
+    } else {
+        "false"
+    }
+}
+
 fn aliases_dir(cli: &Cli) -> std::path::PathBuf {
     if let Some(d) = &cli.aliases_dir {
         return std::path::PathBuf::from(d);
@@ -342,5 +387,12 @@ mod tests {
     #[test]
     fn lore_never_promises_behavior_differences() {
         assert!(lore_text().contains("same engine"));
+    }
+
+    #[test]
+    fn flip_output_is_bash_native() {
+        // the exact strings bash if/&&/|| consume
+        assert_eq!(flip_str(true), "true");
+        assert_eq!(flip_str(false), "false");
     }
 }

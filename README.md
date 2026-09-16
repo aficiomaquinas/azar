@@ -37,6 +37,29 @@ randid -f hex -l 7                     # odd lengths exact
 echo "<token>" | randid --verify       # validates bare AND standard forms
 ```
 
+## Coin flips & random integers (pipe-first, bash-native)
+
+`--flip` prints exactly `true` or `false` — the strings `test`/`if` consume
+directly. `-R MIN MAX` prints one uniform integer (rejection-sampled on the
+CSPRNG, no modulo bias). Both verified against bash **and** zsh.
+
+```bash
+# branch on a fair coin
+if [ "$(randid --flip)" = true ]; then echo heads; else echo tails; fi
+randid --flip && do-a || do-b
+
+# a fair die, an array index, a while-until loop
+n=$(randid -R 1 6)
+pick=${arr[$(randid -R 0 $((${#arr[@]} - 1)))]}
+until [ "$(randid --flip)" = true ]; do :; done
+
+# negative ranges work too (randid -R parses negative numbers)
+v=$(randid -R -10 -2)
+
+# five flips in a stream
+seq 1 5 | xargs -I{} randid --flip
+```
+
 Effective entropy with `-l` is 5 bits per payload char (the 6 checksum
 chars carry none); `--strict` enforces >= 128 effective bits and the
 standard (prefixed) form. All errors go to stderr with exit code 1.
