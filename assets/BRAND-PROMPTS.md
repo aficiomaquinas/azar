@@ -26,41 +26,50 @@ después; en los logo-first el texto va EN el prompt).
 
 # A. WORDMARK — el logo protagonista
 
-## A1. Title sequence — dense bech32 lattice (v3: DENSO, ámbar, sin room)
-> Cinematic film still, 2.39:1 anamorphic — the opening frame of a
-> cryptography thriller. A pure black CRT screen fills the ENTIRE frame:
-> no monitor, no bezel, no room, the phosphor surface IS the world. The
-> whole surface is wallpapered with a dense, perfectly aligned square
-> lattice of tiny lowercase monospace glyphs from the set
-> qpzry9x8gf2tvdw0s3jn54khce6mua7l — exactly one character per cell,
-> thousands of cells, tight uniform spacing, running edge to edge with
-> no margins. Deep AMBER phosphor (#ffb000) on near-black — warm, never
-> green. At the exact center of the lattice, four cells burn far
-> brighter than everything else, spelling the word **azar** in the same
-> monospace — the only word on screen, wrapped in a halo of phosphor
-> bloom and slow afterglow persistence. A few lattice cells elsewhere
-> are caught mid-mutation: the previous glyph still visible as a dim
-> ghost under the new one, as if the message is still being revealed. A
-> faint geometric pattern — thin concentric rounded-square rings —
-> barely legible beneath the lattice, structuring the grid around the
-> bright word. Rich authentic CRT artifacts everywhere: horizontal
-> scanlines with alternating-line flicker, gentle pincushion curvature
-> at the frame edges, glass reflection sheen in one upper corner,
-> subtle interlace jitter, one random cell decaying mid-flicker,
-> vignette pulling the corners into darkness. Dense but perfectly
-> ordered — a Bletchley Park wall of intercepted traffic collapsed into
-> a single screen. The Imitation Game meets a signal-intelligence
-> console: technological, secretive, warm. Fine film grain over
-> everything; the bright word is the single focal point, all else is
-> living texture.
+## A1. Title sequence — hidden-in-the-grid (v4: azar SON celdas, no palabra)
+> Cinematic film still from a cryptography thriller. The entire frame is
+> one single black CRT screen rendered edge to edge with a single
+> uniform monospace character grid: thousands of DIM amber lowercase
+> characters, exactly one per cell, all pixel-identical in size, all
+> from the set qpzry9x8gf2tvdw0s3jn54khce6mua7l, packed tight with
+> perfectly equal spacing, covering every millimeter of the frame like
+> a wall of intercepted signal traffic. There is NO title, NO large
+> text, NO central logo — every single character is the same size.
+>
+> Hidden inside this uniform wall, near the middle of the frame, four
+> consecutive cells happen to read the letters a, z, a, r. These four
+> characters use the exact same font, the exact same cell size and the
+> exact same grid position discipline as every other character — they
+> are NOT bigger, NOT bolder, NOT pulled out, NOT a headline; they do
+> not break the grid by even one pixel. Their only difference is
+> BRIGHTNESS: those four cells glow at full amber intensity with a soft
+> phosphor bloom halo, while every other character stays dim at roughly
+> 20% brightness. The message is discovered, not displayed — found
+> hidden in noise, like a signal inside traffic.
+>
+> Authentic CRT artifacts over everything: fine horizontal scanlines
+> with subtle alternating-line flicker, gentle glass curvature pinching
+> the grid at the frame edges, bloom bleeding from the four bright
+> cells onto their dim neighbors, faint afterglow ghosting where a few
+> characters recently changed, one dim cell caught mid-flicker, corner
+> vignette, fine film grain. Warm amber phosphor #ffb000 on near-black,
+> strictly never green. Mood: The Imitation Game, Bletchley Park signal
+> intelligence, a secret embedded in a wall of traffic.
 
-Variaciones: fósforo blanco-papel frío en vez de ámbar · las 4 celdas
-centrales con un anillo geométrico propio · UNA celda del lattice en
-rojo tenue (la anomalía). Añadir `characters strictly from
-qpzry9x8gf2tvdw0s3jn54khce6mua7l` si el modelo respeta charset (Flux
-mejor que MJ). Magnific: creativity ≤ 2 y solo si conserva la legibilidad
-del centro; el lattice denso es lo primero que el upscale puede convertir
-en sopa.
+**Lección de encoding (por qué la v3 falló)**: los modelos anclan
+`the word azar` / `title` / `headline` a tipografía grande y centrada.
+La fix: nunca nombrar "word" — describir azar como **cuatro celdas
+consecutivas que leen a-z-a-r**, con negaciones explícitas (NOT bigger,
+NOT pulled out, NOT a headline) y la única diferencia declarada como
+brightness. "Lattice" también confundía: usar `single uniform
+monospace character grid` y `wall of characters`.
+
+Variaciones: fósforo blanco-papel frío · un anillo geométrico fino
+rodeando SOLO las 4 celdas brillantes (mismo grid, no flotante) · UNA
+celda distante en rojo tenue (la anomalía). Añadir `characters strictly
+from qpzry9x8gf2tvdw0s3jn54khce6mua7l` si el modelo respeta charset.
+Magnific: creativity ≤ 2 y enmascarando las 4 celdas brillantes; el
+grid denso se convierte en sopa antes que nada bajo upscale agresivo.
 
 ## A2. Swiss poster (tipografía pura)
 > Flat Swiss International Style poster, enormous lowercase word **azar**
