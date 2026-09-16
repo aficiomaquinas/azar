@@ -1,10 +1,10 @@
 [package]
-name = "randid"
+name = "azar"
 version = "0.1.0"
 edition = "2021"
 description = "Random identifier generator: bech32m (BIP-350), base58, base64, hex"
 license = "MIT"
-repository = "https://github.com/ttamayo/randid"
+repository = "https://github.com/aficiomaquinas/azar"
 keywords = ["bech32", "bech32m", "base58", "identifier", "random"]
 categories = ["command-line-utilities", "encoding"]
 

@@ -1,6 +1,6 @@
 //! Official BIP-350 / BIP-173 test vectors + combined-decoder semantics.
 
-use randid::verify_bech32m;
+use azar::verify_bech32m;
 
 /// Valid Bech32m strings — BIP-350 "Test vectors for Bech32m".
 const VALID_BECH32M: &[&str] = &[

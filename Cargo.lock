@@ -59,6 +59,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f2032f911046de80f0a198e0901378627c33f59ea0ac00e363d481118bd70a53"
 
 [[package]]
+name = "azar"
+version = "0.1.0"
+dependencies = [
+ "base64",
+ "bech32",
+ "bs58",
+ "clap",
+ "getrandom 0.3.4",
+ "proptest",
+]
+
+[[package]]
 name = "base64"
 version = "0.22.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -391,18 +403,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "513962919efc330f829edb2535844d1b912b0fbe2ca165d613e4e8788bb05a5a"
 dependencies = [
  "rand_core",
-]
-
-[[package]]
-name = "randid"
-version = "0.1.0"
-dependencies = [
- "base64",
- "bech32",
- "bs58",
- "clap",
- "getrandom 0.3.4",
- "proptest",
 ]
 
 [[package]]

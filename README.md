@@ -1,8 +1,29 @@
-# randid
+# azar
 
-Cryptographically random, human-safe identifier generator.
+Cryptographically random, human-safe identifier and secret generator.
 Single static binary; the shell functions `rand32` / `rand58` are thin
 wrappers around it.
+
+## Why this exists
+
+Every secret generator today is a compromise: web tools (blind trust in a
+supply chain you cannot audit — and your secret leaving the machine), shell
+one-liners gluing `openssl rand` (charset foot-guns, wrapping bugs, nothing
+testable), or libraries that answer a different question (UUID/ULID/KSUID
+solve *sortable identity*, not secrets).
+
+**Don't roll your own crypto — and don't outsource your secrets to a webui
+either.** The checksum and charset machinery comes from the rust-bitcoin
+`bech32` crate (the BIP-350 reference implementation); entropy comes from
+the operating system CSPRNG. Nothing here invents cryptography. What is new
+is that a *perfectly up-to-spec* CLI for this finally exists: a fast static
+binary, exact lengths, optimally dense yet human-safe charsets (no `1`, `b`,
+`i`, `o` confusion), pipe-first ergonomics, fully auditable, zero network.
+Your secret never leaves your machine, and you can read every line.
+
+Cryptocurrency libraries solved this format problem years ago; the novelty
+is a CLI that applies them to everyday secrets, built on standards by
+default.
 
 ## Design
 
@@ -26,15 +47,15 @@ cargo install --path .
 ## Usage
 
 ```bash
-randid                                 # BARE bech32m: <payload><ck6>, 256-bit (58 chars)
-randid -l 12                           # exactly 12 chars, bare + checksum
-randid -l 6 -n | wl-copy               # casual 6-char token, clipboard
-randid -P r32                          # namespace: r321<payload><ck6> (standard form)
-randid -s                              # strict: standard form + >= 128 bits
-randid -f bech32 -P legacy             # classic BIP-173 checksum (needs -P)
-randid -f base58 -l 15                 # base58 / base58check / base64 / hex
-randid -f hex -l 7                     # odd lengths exact
-echo "<token>" | randid --verify       # validates bare AND standard forms
+azar                                 # BARE bech32m: <payload><ck6>, 256-bit (58 chars)
+azar -l 12                           # exactly 12 chars, bare + checksum
+azar -l 6 -n | wl-copy               # casual 6-char token, clipboard
+azar -P r32                          # namespace: r321<payload><ck6> (standard form)
+azar -s                              # strict: standard form + >= 128 bits
+azar -f bech32 -P legacy             # classic BIP-173 checksum (needs -P)
+azar -f base58 -l 15                 # base58 / base58check / base64 / hex
+azar -f hex -l 7                     # odd lengths exact
+echo "<token>" | azar --verify       # validates bare AND standard forms
 ```
 
 ## Coin flips & random integers (pipe-first, bash-native)
@@ -45,19 +66,19 @@ CSPRNG, no modulo bias). Both verified against bash **and** zsh.
 
 ```bash
 # branch on a fair coin
-if [ "$(randid --flip)" = true ]; then echo heads; else echo tails; fi
-randid --flip && do-a || do-b
+if [ "$(azar --flip)" = true ]; then echo heads; else echo tails; fi
+azar --flip && do-a || do-b
 
 # a fair die, an array index, a while-until loop
-n=$(randid -R 1 6)
-pick=${arr[$(randid -R 0 $((${#arr[@]} - 1)))]}
-until [ "$(randid --flip)" = true ]; do :; done
+n=$(azar -R 1 6)
+pick=${arr[$(azar -R 0 $((${#arr[@]} - 1)))]}
+until [ "$(azar --flip)" = true ]; do :; done
 
-# negative ranges work too (randid -R parses negative numbers)
-v=$(randid -R -10 -2)
+# negative ranges work too (azar -R parses negative numbers)
+v=$(azar -R -10 -2)
 
 # five flips in a stream
-seq 1 5 | xargs -I{} randid --flip
+seq 1 5 | xargs -I{} azar --flip
 ```
 
 Effective entropy with `-l` is 5 bits per payload char (the 6 checksum
@@ -69,8 +90,8 @@ standard (prefixed) form. All errors go to stderr with exit code 1.
 `~/.config/shell/functions.sh` (repo `shell-config`) wraps this binary:
 
 ```sh
-rand32()  { exec randid "$@"; }
-rand58()  { exec randid -f base58 "$@"; }   # transitional; maps flags
+rand32()  { exec azar "$@"; }
+rand58()  { exec azar -f base58 "$@"; }   # transitional; maps flags
 ```
 
 ## Development

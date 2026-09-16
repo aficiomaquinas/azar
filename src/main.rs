@@ -1,8 +1,8 @@
-use clap::{Parser, ValueEnum};
-use randid::{
+use azar::{
     base32_plain, base58, base64, bech32m_bare, bech32m_payload, effective_bits, hex, overhead,
     Error, BECH32_MAX_LEN,
 };
+use clap::{Parser, ValueEnum};
 
 #[derive(Copy, Clone, PartialEq, Eq, ValueEnum)]
 enum Format {
@@ -22,7 +22,7 @@ enum Format {
 
 #[derive(Parser)]
 #[command(
-    name = "randid",
+    name = "azar",
     version,
     about = "Random identifier generator — bech32m / base58 / base64 / hex",
     long_about = "Cryptographically random, human-safe identifiers.\n\
@@ -60,7 +60,7 @@ struct Cli {
     #[arg(short = 's', long)]
     strict: bool,
 
-    /// omit trailing newline (pipe-friendly: randid -n | wl-copy)
+    /// omit trailing newline (pipe-friendly: azar -n | wl-copy)
     #[arg(short = 'n', long)]
     no_newline: bool,
 
@@ -91,7 +91,7 @@ struct Cli {
     flip: bool,
 
     /// uniform random integer in [MIN, MAX] inclusive (rejection-sampled,
-    /// no modulo bias): randid -R 1 6. Negative bounds OK.
+    /// no modulo bias): azar -R 1 6. Negative bounds OK.
     #[arg(
         short = 'R',
         long,
@@ -111,19 +111,19 @@ fn main() {
     }
 
     if cli.flip {
-        println!("{}", flip_str(randid::flip()));
+        println!("{}", flip_str(azar::flip()));
         return;
     }
 
     if let Some(bounds) = &cli.randbetween {
         if bounds.len() != 2 {
-            eprintln!("randid: --randbetween needs exactly MIN and MAX");
+            eprintln!("azar: --randbetween needs exactly MIN and MAX");
             std::process::exit(1);
         }
-        match randid::rand_between(bounds[0], bounds[1]) {
+        match azar::rand_between(bounds[0], bounds[1]) {
             Ok(v) => println!("{v}"),
             Err(e) => {
-                eprintln!("randid: {e}");
+                eprintln!("azar: {e}");
                 std::process::exit(1);
             }
         }
@@ -140,7 +140,7 @@ fn main() {
         match action {
             Ok(msg) => println!("{}", msg),
             Err(e) => {
-                eprintln!("randid: {e}");
+                eprintln!("azar: {e}");
                 std::process::exit(1);
             }
         }
@@ -151,7 +151,7 @@ fn main() {
         use std::io::Read;
         let mut input = String::new();
         std::io::stdin().read_to_string(&mut input).expect("stdin");
-        let ok = input.lines().all(|l| randid::verify_bech32m(l.trim()));
+        let ok = input.lines().all(|l| azar::verify_bech32m(l.trim()));
         std::process::exit(if ok { 0 } else { 1 });
     }
 
@@ -163,7 +163,7 @@ fn main() {
             }
         }
         Err(e) => {
-            eprintln!("randid: {e}");
+            eprintln!("azar: {e}");
             std::process::exit(1);
         }
     }
@@ -242,7 +242,7 @@ fn run(cli: &Cli) -> Result<String, Error> {
                 }
                 bech32m_bare(payload_symbols)?
             } else if cli.format == Format::Bech32 {
-                randid::bech32_classic_payload(&hrp, payload_symbols)?
+                azar::bech32_classic_payload(&hrp, payload_symbols)?
             } else {
                 bech32m_payload(&hrp, payload_symbols)?
             }
@@ -268,13 +268,13 @@ fn target_len(cli: &Cli) -> Option<usize> {
 /// Canonical alias family (busybox-style). Every alias runs the exact same
 /// engine: a secret tool must never vary its output by the name it is
 /// invoked with. Symlinks are created by --install-aliases.
-const CANONICAL_ALIASES: &[&str] = &["azar", "bola8", "dado", "ficha", "gettone", "precinto"];
+/// (The primary name, azar, needs no symlink — it IS the binary.)
+const CANONICAL_ALIASES: &[&str] = &["bola8", "dado", "ficha", "gettone", "precinto"];
 
 fn lore_text() -> String {
     let mut out = String::from("canonical alias family — every name runs the same engine:\n\n");
     for name in CANONICAL_ALIASES {
         let story = match *name {
-            "azar" => "Spanish for sheer chance. Four letters, zero ceremony.",
             "bola8" => "the magic 8-ball: ask, shake, receive an answer you did not choose.",
             "dado" => "the die — the oldest randomness device worth trusting.",
             "ficha" => "the token: what you hand over when identity matters.",
@@ -284,7 +284,7 @@ fn lore_text() -> String {
         };
         out.push_str(&format!("  {name:10} {story}\n"));
     }
-    out.push_str("\ninstall them with: randid --install-aliases\n");
+    out.push_str("\ninstall them with: azar --install-aliases\n");
     out
 }
 
@@ -361,7 +361,7 @@ mod tests {
 
     #[test]
     fn alias_family_is_sane() {
-        assert_eq!(CANONICAL_ALIASES.len(), 6);
+        assert_eq!(CANONICAL_ALIASES.len(), 5);
         let mut sorted = CANONICAL_ALIASES.to_vec();
         sorted.sort_unstable();
         sorted.dedup();

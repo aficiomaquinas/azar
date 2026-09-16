@@ -1,4 +1,4 @@
-//! randid — random identifier generation.
+//! azar — random identifier generation.
 //!
 //! Bech32m output follows BIP-350 (checksum constant 0x2bc830a3) via the
 //! `bech32` crate (rust-bitcoin). No checksum or charset code lives here:
@@ -10,7 +10,7 @@
 //! applies AFTER the n-th symbol), so requested lengths are EXACT.
 //!
 //! BIP-173 requires a human-readable part of 1-83 characters for *decoder*
-//! compatibility, but nothing in the checksum itself needs one. randid's
+//! compatibility, but nothing in the checksum itself needs one. azar's
 //! default output is therefore BARE: `<payload><checksum6>` with NO prefix
 //! (checksum computed over the data alone, exactly BIP-350's
 //! `bech32m_create_checksum(hrp="", ...)`). A namespace HRP is opt-in via
@@ -185,7 +185,7 @@ pub fn base32_plain(n: usize) -> Result<String, Error> {
 /// * standard `<hrp>1<payload><checksum6>`: HRP non-empty (BIP-173), valid
 ///   charset and checksum under either variant;
 /// * bare `<payload><checksum6>` (no separator): checksum verified over the
-///   data alone with the crate engine (randid's default form).
+///   data alone with the crate engine (azar's default form).
 ///
 /// All-lower or all-upper presentation required; mixed case rejected.
 #[must_use]

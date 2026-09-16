@@ -1,11 +1,11 @@
 //! Property-based tests: every generated identifier satisfies the
 //! structural contract, across the full flag surface.
 
-use proptest::prelude::*;
-use randid::{
+use azar::{
     base32_plain, base58, base64, bech32m_bare, bech32m_payload, hex, overhead, verify_bech32m,
     BECH32_MAX_LEN,
 };
+use proptest::prelude::*;
 
 proptest! {
     #[test]
