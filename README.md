@@ -46,6 +46,11 @@ Preferred — via cargo (git until the crates.io release is cut):
 cargo install --git https://github.com/aficiomaquinas/azar
 ```
 
+Or grab a prebuilt static binary from
+[Releases](https://github.com/aficiomaquinas/azar/releases) — `tar.gz` for
+Linux (x86_64/aarch64, musl) and macOS (both arches), `.zip` for Windows,
+with SHA256 checksums in `sha256sums.txt`.
+
 From a local checkout:
 
 ```bash
