@@ -3,18 +3,17 @@
 
 use proptest::prelude::*;
 use randid::{
-    base32_plain, base58, base64, bech32m_payload, hex, overhead, verify_bech32m, BECH32_MAX_LEN,
-    DEFAULT_HRP,
+    base32_plain, base58, base64, bech32m_bare, bech32m_payload, hex, overhead, verify_bech32m,
+    BECH32_MAX_LEN,
 };
 
 proptest! {
     #[test]
-    fn bech32m_totals_are_exact(l in 10usize..=84) {
-        // total printed length (HRP + separator + payload + checksum) == l
-        let payload = l - overhead(DEFAULT_HRP);
-        let s = bech32m_payload(DEFAULT_HRP, payload)?;
+    fn bech32m_bare_totals_are_exact(l in 8usize..=84) {
+        // bech32m_bare takes PAYLOAD symbols; total = payload + 6 checksum
+        let s = bech32m_bare(l - 6)?;
         prop_assert_eq!(s.chars().count(), l);
-        prop_assert!(s.starts_with("r1"));
+        prop_assert!(!s.contains('1'));
         prop_assert!(verify_bech32m(&s));
     }
 
@@ -57,7 +56,7 @@ proptest! {
     }
 
     #[test]
-    fn every_output_roundtrips(n in 8usize..=80) {
+    fn every_prefixed_output_roundtrips(n in 8usize..=80) {
         let s = bech32m_payload("r32", n)?;
         prop_assert!(verify_bech32m(&s));
     }

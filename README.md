@@ -26,21 +26,20 @@ cargo install --path .
 ## Usage
 
 ```bash
-randid                                 # bech32m bare, 256-bit (58 chars)
-randid -l 12                           # exactly 12 chars (checksummed)
-randid -P r32                          # HRP namespace: r321<52><6>
-randid -P id- -l 15 -f base58          # literal prefix, base58
+randid                                 # BARE bech32m: <payload><ck6>, 256-bit (58 chars)
+randid -l 12                           # exactly 12 chars, bare + checksum
+randid -l 6 -n | wl-copy               # casual 6-char token, clipboard
+randid -P r32                          # namespace: r321<payload><ck6> (standard form)
+randid -s                              # strict: standard form + >= 128 bits
+randid -f bech32 -P legacy             # classic BIP-173 checksum (needs -P)
+randid -f base58 -l 15                 # base58 / base58check / base64 / hex
 randid -f hex -l 7                     # odd lengths exact
-randid -s                              # enforce >= 128 bits effective
-randid -n | wl-copy                    # pipe-friendly (no newline)
-echo "r321..." | randid --verify       # exit 0/1 checksum validation
+echo "<token>" | randid --verify       # validates bare AND standard forms
 ```
 
-Formats: `bech32m` (default) · `bech32` (legacy BIP-173) · `base58` ·
-`base58check` (NOT truncation-safe with `-l`) · `base64` · `hex`.
-
-Entropía efectiva con `-l`: 5 bits por carácter de payload (los 6 de
-checksum no aportan entropía). Con `-s` se exige >= 128 bits efectivos.
+Effective entropy with `-l` is 5 bits per payload char (the 6 checksum
+chars carry none); `--strict` enforces >= 128 effective bits and the
+standard (prefixed) form. All errors go to stderr with exit code 1.
 
 ## Shell wrappers
 

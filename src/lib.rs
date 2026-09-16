@@ -9,19 +9,20 @@
 //! character (`bytes_to_fes().take(n)` — the crate's zero-padding only
 //! applies AFTER the n-th symbol), so requested lengths are EXACT.
 //!
-//! BIP-173 requires a human-readable part of 1-83 characters, so there is
-//! no standard "bare" form: bech32 output is always `<hrp>1<data><ck>`.
-//! The default HRP is the single character `r`.
+//! BIP-173 requires a human-readable part of 1-83 characters for *decoder*
+//! compatibility, but nothing in the checksum itself needs one. randid's
+//! default output is therefore BARE: `<payload><checksum6>` with NO prefix
+//! (checksum computed over the data alone, exactly BIP-350's
+//! `bech32m_create_checksum(hrp="", ...)`). A namespace HRP is opt-in via
+//! `-P`; `--strict` forces the standard (prefixed) form. `--verify` accepts
+//! both bare and standard forms.
 
-use bech32::primitives::iter::{ByteIterExt, Fe32IterExt};
+use bech32::primitives::iter::{ByteIterExt, Checksummed, Fe32IterExt};
 use bech32::{Bech32, Bech32m, Fe32, Hrp};
 use std::fmt;
 
 /// BIP-173: a bech32(m) string is at most 90 characters.
 pub const BECH32_MAX_LEN: usize = 90;
-
-/// Default namespace: minimal single-character HRP (BIP-173 requires 1-83).
-pub const DEFAULT_HRP: &str = "r";
 
 #[derive(Debug)]
 pub enum Error {
@@ -33,6 +34,8 @@ pub enum Error {
     TooLong { total: usize },
     /// HRP outside BIP-173 validity (empty, non-ASCII, > 83 chars...).
     BadPrefix(String),
+    /// bech32 classic has no bare form (BIP-173 requires an HRP).
+    NoBareForClassic,
     /// OS entropy source failed.
     Entropy(String),
 }
@@ -55,6 +58,10 @@ impl fmt::Display for Error {
             Error::BadPrefix(p) => write!(
                 f,
                 "prefix \"{p}\" is not a valid bech32 HRP (1-83 printable ASCII chars)"
+            ),
+            Error::NoBareForClassic => write!(
+                f,
+                "format bech32 (classic) has no bare form; use -P <prefix> or format bech32m"
             ),
             Error::Entropy(e) => write!(f, "entropy error: {e}"),
         }
@@ -112,6 +119,20 @@ pub fn bech32_classic_payload(hrp: &str, payload_symbols: usize) -> Result<Strin
     encode_with_entropy::<Bech32>(hrp, payload_symbols)
 }
 
+/// BARE bech32m identifier: `<payload><checksum6>` with NO prefix. The
+/// crate's `Checksummed` engine computes the checksum over the data alone
+/// (empty-HRP expansion, matching BIP-350's
+/// `bech32m_create_checksum(hrp="", ...)`). Not decodable by standard
+/// BIP-173 decoders (they require an HRP); verified by `verify_bech32m`.
+pub fn bech32m_bare(payload_symbols: usize) -> Result<String, Error> {
+    let bytes = entropy_bytes((payload_symbols * 5).div_ceil(8))?;
+    Ok(
+        Checksummed::<_, Bech32m>::new(bytes.into_iter().bytes_to_fes().take(payload_symbols))
+            .map(Fe32::to_char)
+            .collect(),
+    )
+}
+
 /// Generate a plain base32 string (NO checksum) of exactly `n` characters,
 /// for casual non-cryptographic identifiers.
 pub fn base32_plain(n: usize) -> Result<String, Error> {
@@ -124,12 +145,13 @@ pub fn base32_plain(n: usize) -> Result<String, Error> {
         .collect())
 }
 
-/// Verify a bech32(m) string (standard form `<hrp>1<data><checksum6>`):
-/// all-lower or all-upper presentation, valid HRP and charset (crate's
-/// `Fe32::from_char`), valid checksum under either variant. Re-encoding
-/// the data symbols with the crate's checksum engine must reproduce the
-/// input exactly. Bare strings without a separator are not standard
-/// bech32 and are rejected.
+/// Verify a bech32(m) string. Two forms are accepted:
+/// * standard `<hrp>1<payload><checksum6>`: HRP non-empty (BIP-173), valid
+///   charset and checksum under either variant;
+/// * bare `<payload><checksum6>` (no separator): checksum verified over the
+///   data alone with the crate engine (randid's default form).
+///
+/// All-lower or all-upper presentation required; mixed case rejected.
 #[must_use]
 pub fn verify_bech32m(s: &str) -> bool {
     let lower = s.to_lowercase();
@@ -138,6 +160,24 @@ pub fn verify_bech32m(s: &str) -> bool {
     if s != lower && s != upper {
         return false;
     }
+
+    // Bare form: no separator anywhere.
+    if !lower.contains('1') {
+        if lower.chars().count() < 7 {
+            return false; // checksum alone is 6; at least 1 entropy char
+        }
+        // feed only the payload body; the engine appends its own checksum
+        let (body, _ck) = lower.split_at(lower.chars().count() - 6);
+        let fes: Result<Vec<Fe32>, _> = body.chars().map(Fe32::from_char).collect();
+        let Ok(fes) = fes else {
+            return false;
+        };
+        let reencoded: String = Checksummed::<_, Bech32m>::new(fes.into_iter())
+            .map(Fe32::to_char)
+            .collect();
+        return reencoded == lower;
+    }
+
     let Some(seppos) = lower.rfind('1') else {
         return false;
     };
@@ -242,10 +282,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn default_hrp_output_shape() {
-        let s = bech32m_payload(DEFAULT_HRP, 52).unwrap();
-        assert_eq!(s.chars().count(), 60); // r + 1 + 52 payload + 6 checksum
-        assert!(s.starts_with("r1"));
+    fn bare_default_shape() {
+        let s = bech32m_bare(52).unwrap();
+        assert_eq!(s.chars().count(), 58); // 52 payload + 6 checksum
+        assert!(!s.contains('1'));
         assert!(verify_bech32m(&s));
     }
 

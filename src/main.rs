@@ -1,7 +1,7 @@
 use clap::{Parser, ValueEnum};
 use randid::{
-    base32_plain, base58, base64, bech32m_payload, effective_bits, hex, overhead, Error,
-    BECH32_MAX_LEN, DEFAULT_HRP,
+    base32_plain, base58, base64, bech32m_bare, bech32m_payload, effective_bits, hex, overhead,
+    Error, BECH32_MAX_LEN,
 };
 
 #[derive(Copy, Clone, PartialEq, Eq, ValueEnum)]
@@ -26,25 +26,28 @@ enum Format {
     version,
     about = "Random identifier generator — bech32m / base58 / base64 / hex",
     long_about = "Cryptographically random, human-safe identifiers.\n\
-                  bech32m output is bit-level length-exact and uses the BIP-350 checksum\n\
-                  (guaranteed detection of up to 4 character errors). Default namespace\n\
-                  HRP is \"r\": r1<payload><checksum6>."
+                  Default output is BARE bech32m: <payload><checksum6> — no prefix, no separator,\n\
+                  lowercase, never contains 1/b/i/o. Lengths are EXACT (bit-level sampling).\n\
+                  Use -P for a namespace (standard bech32m form, decodable everywhere) and\n\
+                  --strict for a cryptographic-grade token (>= 128 bits, standard form)."
 )]
 struct Cli {
     /// output format
     #[arg(short, long, value_enum, default_value_t = Format::Bech32m)]
     format: Format,
 
-    /// namespace HRP for bech32(m) (default \"r\"); literal prefix otherwise
+    /// namespace HRP (bech32(m): standard <hrp>1<payload><ck> form; other
+    /// formats: literal prefix). Default: none — bare output.
     #[arg(short = 'P', long)]
     prefix: Option<String>,
 
     /// total printed length INCLUDING prefix, separator and checksum
-    /// (bech32m) or prefix (others). bech32m output is EXACTLY this long.
+    /// (bech32m) or prefix (others). Output is EXACTLY this long.
     #[arg(short = 'l', long)]
     length: Option<usize>,
 
-    /// entropy in bits (default 256)
+    /// entropy in bits (default 256; bech32(m) uses 5 bits per payload char
+    /// when -l is given, so -b is then only a strict-mode floor)
     #[arg(short = 'b', long, conflicts_with = "bytes")]
     bits: Option<usize>,
 
@@ -52,7 +55,8 @@ struct Cli {
     #[arg(short = 'B', long)]
     bytes: Option<usize>,
 
-    /// strict: require at least 128 bits of effective entropy
+    /// strict: require >= 128 bits of effective entropy AND the standard
+    /// (prefixed) bech32m form — implies `-P r` when no -P is given
     #[arg(short = 's', long)]
     strict: bool,
 
@@ -60,7 +64,8 @@ struct Cli {
     #[arg(short = 'n', long)]
     no_newline: bool,
 
-    /// verify bech32(m) strings read from stdin instead of generating
+    /// verify bech32(m) strings read from stdin (bare or standard form);
+    /// exit 0 if every line is valid, 1 otherwise
     #[arg(long)]
     verify: bool,
 }
@@ -92,12 +97,21 @@ fn main() {
 
 fn run(cli: &Cli) -> Result<String, Error> {
     let is_bech = matches!(cli.format, Format::Bech32m | Format::Bech32);
-    let hrp = cli
-        .prefix
-        .clone()
-        .unwrap_or_else(|| DEFAULT_HRP.to_string());
-    // plain (no checksum) only for short, prefix-less bech32m requests
-    let plain = is_bech && cli.prefix.is_none() && cli.length.is_some_and(|l| l < 8);
+
+    // ---- strict mode forces the standard (prefixed) form ----
+    let hrp = if is_bech {
+        match (&cli.prefix, cli.strict) {
+            (Some(p), _) => p.clone(),
+            (None, true) => "r".to_string(),
+            (None, false) => String::new(), // bare
+        }
+    } else {
+        cli.prefix.clone().unwrap_or_default()
+    };
+    let prefixed = !hrp.is_empty();
+
+    // plain (no checksum) only for short prefix-less bech32m requests
+    let plain = is_bech && !prefixed && cli.length.is_some_and(|l| l < 8);
 
     // ---- entropy budget ----
     let bits_arg = match (cli.bits, cli.bytes) {
@@ -118,31 +132,41 @@ fn run(cli: &Cli) -> Result<String, Error> {
     // ---- per-format generation ----
     let token = match cli.format {
         Format::Bech32m | Format::Bech32 => {
-            let ovh = overhead(&hrp);
-            let payload_symbols = match cli.length {
-                Some(l) => {
-                    if plain {
-                        l
-                    } else {
-                        match l.checked_sub(ovh) {
-                            Some(t) if t >= 2 => t,
-                            _ => {
-                                return Err(Error::LengthTooSmall {
-                                    requested: l,
-                                    minimum: ovh + 2,
-                                })
-                            }
-                        }
-                    }
+            let payload_symbols = if plain {
+                cli.length.expect("plain implies -l")
+            } else if let Some(l) = cli.length {
+                if !prefixed {
+                    // bare + checksummed: overhead is just the 6-char checksum
+                    l.checked_sub(6)
+                        .filter(|&t| t >= 2)
+                        .ok_or(Error::LengthTooSmall {
+                            requested: l,
+                            minimum: 8,
+                        })?
+                } else {
+                    let ovh = overhead(&hrp);
+                    l.checked_sub(ovh)
+                        .filter(|&t| t >= 2)
+                        .ok_or(Error::LengthTooSmall {
+                            requested: l,
+                            minimum: ovh + 2,
+                        })?
                 }
-                None => bits_arg.div_ceil(5),
+            } else {
+                bits_arg.div_ceil(5)
             };
-            let total = ovh + payload_symbols;
+            let total = payload_symbols + if prefixed { overhead(&hrp) } else { 6 };
             if total > BECH32_MAX_LEN {
                 return Err(Error::TooLong { total });
             }
             if plain {
                 base32_plain(payload_symbols)?
+            } else if !prefixed {
+                // only bech32m has a defined bare form
+                if cli.format == Format::Bech32 {
+                    return Err(Error::NoBareForClassic);
+                }
+                bech32m_bare(payload_symbols)?
             } else if cli.format == Format::Bech32 {
                 randid::bech32_classic_payload(&hrp, payload_symbols)?
             } else {
@@ -155,9 +179,9 @@ fn run(cli: &Cli) -> Result<String, Error> {
         Format::Hex => hex(target_len(cli))?,
     };
 
-    Ok(match &cli.prefix {
+    Ok(match (&cli.prefix, is_bech) {
         // bech32(m) already embeds the prefix as HRP; literal formats get it prepended
-        Some(p) if !is_bech => format!("{p}{token}"),
+        (Some(p), false) => format!("{p}{token}"),
         _ => token,
     })
 }
