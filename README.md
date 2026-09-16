@@ -40,6 +40,14 @@ default.
 
 ## Install
 
+Preferred — via cargo (git until the crates.io release is cut):
+
+```bash
+cargo install --git https://github.com/aficiomaquinas/azar
+```
+
+From a local checkout:
+
 ```bash
 cargo install --path .
 ```
