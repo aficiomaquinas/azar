@@ -35,6 +35,7 @@ jobs:
             os: macos-latest
           # Windows: MSVC
           - target: x86_64-pc-windows-msvc
+            os: windows-latest
     runs-on: ${{ matrix.os || 'ubuntu-latest' }}
     permissions:
       contents: write # for taiki-e/upload-rust-binary-action

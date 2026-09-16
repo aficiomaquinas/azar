@@ -301,8 +301,8 @@ fn aliases_dir(cli: &Cli) -> std::path::PathBuf {
     if let Some(d) = &cli.aliases_dir {
         return std::path::PathBuf::from(d);
     }
-    let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
-    std::path::PathBuf::from(home).join(".local").join("bin")
+    let home = home::home_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
+    home.join(".local").join("bin")
 }
 
 fn install_aliases(dir: &std::path::Path) -> Result<String, String> {
@@ -320,7 +320,11 @@ fn install_aliases(dir: &std::path::Path) -> Result<String, String> {
             skipped += 1; // occupied by something else: never clobber
             continue;
         }
+        #[cfg(unix)]
         std::os::unix::fs::symlink(&exe, &link)
+            .map_err(|e| format!("cannot link {}: {e}", link.display()))?;
+        #[cfg(windows)]
+        std::os::windows::fs::symlink_file(&exe, &link)
             .map_err(|e| format!("cannot link {}: {e}", link.display()))?;
         linked += 1;
     }
