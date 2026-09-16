@@ -49,7 +49,7 @@ cargo install --git https://github.com/aficiomaquinas/azar
 Or grab a prebuilt static binary from
 [Releases](https://github.com/aficiomaquinas/azar/releases) — `tar.gz` for
 Linux (x86_64/aarch64, musl) and macOS (both arches), `.zip` for Windows,
-with SHA256 checksums in `sha256sums.txt`.
+each with a sidecar `.sha256` checksum file.
 
 From a local checkout:
 
