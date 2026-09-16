@@ -68,10 +68,48 @@ struct Cli {
     /// exit 0 if every line is valid, 1 otherwise
     #[arg(long)]
     verify: bool,
+
+    /// create symlinks for the canonical alias family (busybox-style)
+    #[arg(long)]
+    install_aliases: bool,
+
+    /// remove the canonical alias symlinks
+    #[arg(long)]
+    uninstall_aliases: bool,
+
+    /// target directory for alias symlinks (default: ~/.local/bin)
+    #[arg(long, value_name = "DIR")]
+    aliases_dir: Option<String>,
+
+    /// print the story behind each canonical alias name and exit
+    #[arg(long)]
+    lore: bool,
 }
 
 fn main() {
     let cli = Cli::parse();
+
+    if cli.lore {
+        print!("{}", lore_text());
+        return;
+    }
+
+    if cli.install_aliases || cli.uninstall_aliases {
+        let dir = aliases_dir(&cli);
+        let action = if cli.install_aliases {
+            install_aliases(&dir)
+        } else {
+            uninstall_aliases(&dir)
+        };
+        match action {
+            Ok(msg) => println!("{}", msg),
+            Err(e) => {
+                eprintln!("randid: {e}");
+                std::process::exit(1);
+            }
+        }
+        return;
+    }
 
     if cli.verify {
         use std::io::Read;
@@ -189,4 +227,120 @@ fn run(cli: &Cli) -> Result<String, Error> {
 fn target_len(cli: &Cli) -> Option<usize> {
     cli.length
         .map(|l| l - cli.prefix.as_ref().map_or(0, |p| p.chars().count()))
+}
+
+/// Canonical alias family (busybox-style). Every alias runs the exact same
+/// engine: a secret tool must never vary its output by the name it is
+/// invoked with. Symlinks are created by --install-aliases.
+const CANONICAL_ALIASES: &[&str] = &["azar", "bola8", "dado", "ficha", "gettone", "precinto"];
+
+fn lore_text() -> String {
+    let mut out = String::from("canonical alias family — every name runs the same engine:\n\n");
+    for name in CANONICAL_ALIASES {
+        let story = match *name {
+            "azar" => "Spanish for sheer chance. Four letters, zero ceremony.",
+            "bola8" => "the magic 8-ball: ask, shake, receive an answer you did not choose.",
+            "dado" => "the die — the oldest randomness device worth trusting.",
+            "ficha" => "the token: what you hand over when identity matters.",
+            "gettone" => "the Italian payphone token: a small coin that meant connection granted.",
+            "precinto" => "the tamper-evident seal: if it verifies, nobody touched it in transit.",
+            _ => unreachable!("alias list is closed"),
+        };
+        out.push_str(&format!("  {name:10} {story}\n"));
+    }
+    out.push_str("\ninstall them with: randid --install-aliases\n");
+    out
+}
+
+fn aliases_dir(cli: &Cli) -> std::path::PathBuf {
+    if let Some(d) = &cli.aliases_dir {
+        return std::path::PathBuf::from(d);
+    }
+    let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
+    std::path::PathBuf::from(home).join(".local").join("bin")
+}
+
+fn install_aliases(dir: &std::path::Path) -> Result<String, String> {
+    std::fs::create_dir_all(dir).map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
+    let exe = std::env::current_exe().map_err(|e| format!("cannot locate own binary: {e}"))?;
+    let mut linked = 0usize;
+    let mut skipped = 0usize;
+    for name in CANONICAL_ALIASES {
+        let link = dir.join(name);
+        if link.symlink_metadata().is_ok() {
+            if std::fs::read_link(&link).is_ok_and(|t| t == exe) {
+                skipped += 1; // already ours
+                continue;
+            }
+            skipped += 1; // occupied by something else: never clobber
+            continue;
+        }
+        std::os::unix::fs::symlink(&exe, &link)
+            .map_err(|e| format!("cannot link {}: {e}", link.display()))?;
+        linked += 1;
+    }
+    Ok(format!(
+        "{} alias(es) linked into {}, {} already present",
+        linked,
+        dir.display(),
+        skipped
+    ))
+}
+
+fn uninstall_aliases(dir: &std::path::Path) -> Result<String, String> {
+    let exe = std::env::current_exe().map_err(|e| format!("cannot locate own binary: {e}"))?;
+    let mut removed = 0usize;
+    let mut kept = 0usize;
+    for name in CANONICAL_ALIASES {
+        let link = dir.join(name);
+        let Ok(target) = std::fs::read_link(&link) else {
+            continue; // not a symlink (or absent): never touch
+        };
+        if target == exe {
+            std::fs::remove_file(&link)
+                .map_err(|e| format!("cannot remove {}: {e}", link.display()))?;
+            removed += 1;
+        } else {
+            kept += 1;
+        }
+    }
+    Ok(format!(
+        "{} alias(es) removed, {} kept (not ours)",
+        removed, kept
+    ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn alias_family_is_sane() {
+        assert_eq!(CANONICAL_ALIASES.len(), 6);
+        let mut sorted = CANONICAL_ALIASES.to_vec();
+        sorted.sort_unstable();
+        sorted.dedup();
+        assert_eq!(
+            sorted.len(),
+            CANONICAL_ALIASES.len(),
+            "aliases must be unique"
+        );
+        // symlink-safe names: [a-z0-9] only
+        assert!(CANONICAL_ALIASES.iter().all(|a| !a.is_empty()
+            && a.bytes()
+                .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit())));
+    }
+
+    #[test]
+    fn lore_mentions_every_alias() {
+        let lore = lore_text();
+        for name in CANONICAL_ALIASES {
+            assert!(lore.contains(name), "lore must mention {name}");
+        }
+    }
+
+    #[test]
+    fn lore_never_promises_behavior_differences() {
+        assert!(lore_text().contains("same engine"));
+    }
 }
