@@ -9,6 +9,11 @@
 //! character (`bytes_to_fes().take(n)` — the crate's zero-padding only
 //! applies AFTER the n-th symbol), so requested lengths are EXACT.
 //!
+//! Every output carries a checksum: requests below the structural minimum
+//! are a clean error, never a checksum-less token. `--verify` accepts
+//! exactly what the generator emits, so `azar -l N | azar --verify`
+//! holds for every N the generator accepts.
+//!
 //! BIP-173 requires a human-readable part of 1-83 characters for *decoder*
 //! compatibility, but nothing in the checksum itself needs one. azar's
 //! default output is therefore BARE: `<payload><checksum6>` with NO prefix
@@ -36,6 +41,12 @@ pub enum Error {
     BadPrefix(String),
     /// bech32 classic has no bare form (BIP-173 requires an HRP).
     NoBareForClassic,
+    /// Input contained non-bech32 characters (verifier rejects instead of crash).
+    BadCharset,
+    /// Empty input where at least one token was required (e.g. `--verify` stdin).
+    EmptyInput,
+    /// Degenerate zero-length request (-l 0 / -b 0 / -B 0).
+    ZeroLength,
     /// randbetween bounds inverted (min > max).
     RangeInvalid { min: i64, max: i64 },
     /// OS entropy source failed.
@@ -65,6 +76,9 @@ impl fmt::Display for Error {
                 f,
                 "format bech32 (classic) has no bare form; use -P <prefix> or format bech32m"
             ),
+            Error::BadCharset => write!(f, "input contains characters outside the bech32 charset"),
+            Error::EmptyInput => write!(f, "empty input: expected at least one token"),
+            Error::ZeroLength => write!(f, "zero-length request: -l/-b/-B must be >= 1"),
             Error::RangeInvalid { min, max } => {
                 write!(f, "invalid range: min {min} > max {max}")
             }
@@ -188,14 +202,20 @@ pub fn base32_plain(n: usize) -> Result<String, Error> {
 ///   data alone with the crate engine (azar's default form).
 ///
 /// All-lower or all-upper presentation required; mixed case rejected.
+/// Multibyte-safe: every byte-indexing split happens on validated ASCII
+/// content only (a char-index split of arbitrary input is NOT enough —
+/// `str::split_at` takes BYTE indices).
 #[must_use]
 pub fn verify_bech32m(s: &str) -> bool {
     let lower = s.to_lowercase();
     let upper = s.to_uppercase();
     // BIP-173: mixed case is invalid; all-lower and all-upper are valid.
-    if s != lower && s != upper {
+    // Also folds away any non-ASCII: its BYTES are never bech32-charset,
+    // so gate on all-ASCII before any byte-indexing split below.
+    if (s != lower && s != upper) || !s.is_ascii() {
         return false;
     }
+    let lower = lower.as_str();
 
     // Bare form: no separator anywhere.
     if !lower.contains('1') {
@@ -203,7 +223,7 @@ pub fn verify_bech32m(s: &str) -> bool {
             return false; // checksum alone is 6; at least 1 entropy char
         }
         // feed only the payload body; the engine appends its own checksum
-        let (body, _ck) = lower.split_at(lower.chars().count() - 6);
+        let (body, _ck) = lower.split_at(lower.len() - 6);
         let fes: Result<Vec<Fe32>, _> = body.chars().map(Fe32::from_char).collect();
         let Ok(fes) = fes else {
             return false;
@@ -217,6 +237,7 @@ pub fn verify_bech32m(s: &str) -> bool {
     let Some(seppos) = lower.rfind('1') else {
         return false;
     };
+    // ASCII-only proven above: char position == byte position.
     let (hrp, data_part) = lower.split_at(seppos);
     let data_part = &data_part[1..];
     if hrp.is_empty() || data_part.chars().count() < 6 {
@@ -226,12 +247,12 @@ pub fn verify_bech32m(s: &str) -> bool {
         return false;
     };
     // feed only the payload body; the crate appends its own 6-char checksum
-    let (body, _ck) = data_part.split_at(data_part.chars().count() - 6);
+    let (body, _ck) = data_part.split_at(data_part.len() - 6);
     let fes: Result<Vec<Fe32>, _> = body.chars().map(Fe32::from_char).collect();
     let Ok(fes) = fes else {
         return false;
     };
-    matches_checksum::<Bech32m>(&h, &fes, &lower) || matches_checksum::<Bech32>(&h, &fes, &lower)
+    matches_checksum::<Bech32m>(&h, &fes, lower) || matches_checksum::<Bech32>(&h, &fes, lower)
 }
 
 fn matches_checksum<Ck: bech32::Checksum>(h: &Hrp, fes: &[Fe32], expected: &str) -> bool {
@@ -346,10 +367,35 @@ mod tests {
     }
 
     #[test]
-    fn plain_base32_length() {
-        for n in [2, 3, 5, 7, 8] {
-            let s = base32_plain(n).unwrap();
-            assert_eq!(s.chars().count(), n);
+    fn verifier_is_multibyte_safe() {
+        // regression F1: non-ASCII input must be rejected, never panic
+        // (char count used as a byte index in split_at)
+        let cases = ["ñññññññ", "ñññññññññññññ", "日本語テスト", "café1ñññññ"];
+        for s in cases {
+            assert!(!verify_bech32m(s), "{s} must be rejected, not panic");
+        }
+    }
+
+    #[test]
+    fn verifier_rejects_empty_and_degenerate() {
+        assert!(!verify_bech32m(""));
+        // checksum-only strings carry zero entropy: invalid
+        assert!(!verify_bech32m("qpzry9"));
+        // 6 valid charset chars + 1 arbitrary: still fails the checksum
+        assert!(!verify_bech32m("qpzry9x"));
+    }
+
+    #[test]
+    fn minimum_bare_length_roundtrips() {
+        // regression F5: the shortest generatable bare token must verify
+        // (1 payload char + 6-char checksum = structural floor of 7)
+        let s = bech32m_bare(1).unwrap();
+        assert_eq!(s.chars().count(), 7);
+        assert!(verify_bech32m(&s));
+        for n in 1..=4 {
+            let s = bech32m_bare(n).unwrap();
+            assert_eq!(s.chars().count(), n + 6);
+            assert!(verify_bech32m(&s));
         }
     }
 

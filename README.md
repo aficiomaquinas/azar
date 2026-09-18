@@ -47,6 +47,10 @@ default.
   `/dev/urandom` via the standard library path).
 - Length sampling is **bit-level**: exactly 5 entropy bits per output
   character, so `--length N` is **exactly N characters, always**.
+- **Every output is checksummed and verifiable**: requests below the
+  structural minimum (7 chars bare = 1 payload + 6 checksum; more with
+  `-P`) are a clean error, never a checksum-less token — so
+  `azar -l N | azar --verify` holds for every N the generator accepts.
 - Charset excludes `1`, `b`, `i`, `o` (visual ambiguity) and is all-lower:
   safe for double-click, URLs, and voice.
 
@@ -74,7 +78,7 @@ cargo install --path .
 ```bash
 azar                                 # BARE bech32m: <payload><ck6>, 256-bit (58 chars)
 azar -l 12                           # exactly 12 chars, bare + checksum
-azar -l 6 -n | wl-copy               # casual 6-char token, clipboard
+azar -l 7 -n | wl-copy               # shortest verifiable token (1 char + 6 ck)
 azar -P r32                          # namespace: r321<payload><ck6> (standard form)
 azar -s                              # strict: standard form + >= 128 bits
 azar -f bech32 -P legacy             # classic BIP-173 checksum (needs -P)

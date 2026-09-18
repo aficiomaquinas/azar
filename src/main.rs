@@ -1,6 +1,6 @@
 use azar::{
-    base32_plain, base58, base64, bech32m_bare, bech32m_payload, effective_bits, hex, overhead,
-    Error, BECH32_MAX_LEN,
+    base58, base64, bech32m_bare, bech32m_payload, effective_bits, hex, overhead, Error,
+    BECH32_MAX_LEN,
 };
 use clap::{Parser, ValueEnum};
 
@@ -150,8 +150,18 @@ fn main() {
     if cli.verify {
         use std::io::Read;
         let mut input = String::new();
-        std::io::stdin().read_to_string(&mut input).expect("stdin");
-        let ok = input.lines().all(|l| azar::verify_bech32m(l.trim()));
+        if std::io::stdin().read_to_string(&mut input).is_err() {
+            eprintln!("azar: stdin is not valid UTF-8");
+            std::process::exit(1);
+        }
+        let lines: Vec<&str> = input.lines().map(str::trim).collect();
+        if lines.is_empty() {
+            eprintln!("azar: {}", Error::EmptyInput);
+            std::process::exit(1);
+        }
+        let verified = lines.iter().filter(|l| azar::verify_bech32m(l)).count();
+        let ok = verified == lines.len();
+        eprintln!("{verified} of {} token(s) verified", lines.len());
         std::process::exit(if ok { 0 } else { 1 });
     }
 
@@ -184,8 +194,12 @@ fn run(cli: &Cli) -> Result<String, Error> {
     };
     let prefixed = !hrp.is_empty();
 
-    // plain (no checksum) only for short prefix-less bech32m requests
-    let plain = is_bech && !prefixed && cli.length.is_some_and(|l| l < 8);
+    // Degenerate zero-length requests are rejected outright: -l 0 would
+    // print nothing, and -b 0 / -B 0 without -l would emit a checksum (or
+    // token) with ZERO entropy characters.
+    if cli.length == Some(0) || cli.bits == Some(0) || cli.bytes == Some(0) {
+        return Err(Error::ZeroLength);
+    }
 
     // ---- entropy budget ----
     let bits_arg = match (cli.bits, cli.bytes) {
@@ -195,7 +209,7 @@ fn run(cli: &Cli) -> Result<String, Error> {
     };
 
     if cli.strict {
-        let eff = effective_bits(cli.length, &hrp, bits_arg, plain);
+        let eff = effective_bits(cli.length, &hrp, bits_arg, false);
         if eff < 128 {
             return Err(Error::StrictEntropy {
                 effective_bits: eff,
@@ -206,16 +220,22 @@ fn run(cli: &Cli) -> Result<String, Error> {
     // ---- per-format generation ----
     let token = match cli.format {
         Format::Bech32m | Format::Bech32 => {
-            let payload_symbols = if plain {
-                cli.length.expect("plain implies -l")
-            } else if let Some(l) = cli.length {
+            // NOTE (pending operator ratification, review F5/D2): the
+            // checksum-less `plain` base32 path is REMOVED — every azar
+            // output is now checksummed and verifiable by its own
+            // `--verify`. Bare requests below the structural minimum
+            // (2 payload + 6 checksum) are a clean error, never a
+            // checksum-less token.
+            let payload_symbols = if let Some(l) = cli.length {
                 if !prefixed {
-                    // bare + checksummed: overhead is just the 6-char checksum
+                    // bare + checksummed: overhead is just the 6-char checksum;
+                    // minimum is 1 payload + 6 checksum = 7, exactly the
+                    // verifier's structural floor (generate ⇔ verify consistent)
                     l.checked_sub(6)
-                        .filter(|&t| t >= 2)
+                        .filter(|&t| t >= 1)
                         .ok_or(Error::LengthTooSmall {
                             requested: l,
-                            minimum: 8,
+                            minimum: 7,
                         })?
                 } else {
                     let ovh = overhead(&hrp);
@@ -233,9 +253,7 @@ fn run(cli: &Cli) -> Result<String, Error> {
             if total > BECH32_MAX_LEN {
                 return Err(Error::TooLong { total });
             }
-            if plain {
-                base32_plain(payload_symbols)?
-            } else if !prefixed {
+            if !prefixed {
                 // only bech32m has a defined bare form
                 if cli.format == Format::Bech32 {
                     return Err(Error::NoBareForClassic);
@@ -247,10 +265,10 @@ fn run(cli: &Cli) -> Result<String, Error> {
                 bech32m_payload(&hrp, payload_symbols)?
             }
         }
-        Format::Base58 => base58(target_len(cli), false)?,
-        Format::Base58check => base58(target_len(cli), true)?,
-        Format::Base64 => base64(target_len(cli))?,
-        Format::Hex => hex(target_len(cli))?,
+        Format::Base58 => base58(target_len(cli)?, false)?,
+        Format::Base58check => base58(target_len(cli)?, true)?,
+        Format::Base64 => base64(target_len(cli)?)?,
+        Format::Hex => hex(target_len(cli)?)?,
     };
 
     Ok(match (&cli.prefix, is_bech) {
@@ -260,9 +278,16 @@ fn run(cli: &Cli) -> Result<String, Error> {
     })
 }
 
-fn target_len(cli: &Cli) -> Option<usize> {
-    cli.length
-        .map(|l| l - cli.prefix.as_ref().map_or(0, |p| p.chars().count()))
+fn target_len(cli: &Cli) -> Result<Option<usize>, Error> {
+    let Some(l) = cli.length else {
+        return Ok(None);
+    };
+    let prefix_len = cli.prefix.as_ref().map_or(0, |p| p.chars().count());
+    let target = l.checked_sub(prefix_len).ok_or(Error::LengthTooSmall {
+        requested: l,
+        minimum: prefix_len + 1,
+    })?;
+    Ok(Some(target))
 }
 
 /// Canonical alias family (busybox-style). Every alias runs the exact same
