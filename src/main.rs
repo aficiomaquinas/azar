@@ -1,10 +1,7 @@
-use azar::{
-    base58, base64, bech32m_bare, bech32m_payload, effective_bits, hex, overhead, Error,
-    BECH32_MAX_LEN,
-};
+use azar::{base58, base64, bech32m_bare, bech32m_payload, hex, overhead, Error, BECH32_MAX_LEN};
 use clap::{Parser, ValueEnum};
 
-#[derive(Copy, Clone, PartialEq, Eq, ValueEnum)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, ValueEnum)]
 enum Format {
     /// bech32m per BIP-350 (default): charset without 1/b/i/o, 6-char BCH checksum
     Bech32m,
@@ -28,8 +25,12 @@ enum Format {
     long_about = "Cryptographically random, human-safe identifiers.\n\
                   Default output is BARE bech32m: <payload><checksum6> — no prefix, no separator,\n\
                   lowercase, never contains 1/b/i/o. Lengths are EXACT (bit-level sampling).\n\
-                  Use -P for a namespace (standard bech32m form, decodable everywhere) and\n\
-                  --strict for a cryptographic-grade token (>= 128 bits, standard form)."
+                  Use -P for a namespace (standard bech32m form, decodable everywhere).\n\
+                  The default is PERMISSIVE: any length is produced; lengths too short for the\n\
+                  6-char checksum are emitted checksum-less (not verifiable) rather than\n\
+                  erroring, so no length breaks a pipeline. Guarantees are opt-in via strict\n\
+                  flags — -m/--min-bits N (entropy), --standard (form), --checksum (verifiable\n\
+                  output); violations are standard errors: stderr, non-zero exit, no stdout."
 )]
 struct Cli {
     /// output format
@@ -42,12 +43,14 @@ struct Cli {
     prefix: Option<String>,
 
     /// total printed length INCLUDING prefix, separator and checksum
-    /// (bech32m) or prefix (others). Output is EXACTLY this long.
+    /// (bech32m) or prefix (others). Output is EXACTLY this long. Below
+    /// the checksum floor (7 bare / overhead+1 prefixed) bech32 output is
+    /// checksum-less unless --checksum forbids it
     #[arg(short = 'l', long)]
     length: Option<usize>,
 
-    /// entropy in bits (default 256; bech32(m) uses 5 bits per payload char
-    /// when -l is given, so -b is then only a strict-mode floor)
+    /// entropy in bits (default 256; with -l the effective entropy is
+    /// derived from the output length instead and -b/-B are ignored)
     #[arg(short = 'b', long, conflicts_with = "bytes")]
     bits: Option<usize>,
 
@@ -55,10 +58,22 @@ struct Cli {
     #[arg(short = 'B', long)]
     bytes: Option<usize>,
 
-    /// strict: require >= 128 bits of effective entropy AND the standard
-    /// (prefixed) bech32m form — implies `-P r` when no -P is given
-    #[arg(short = 's', long)]
-    strict: bool,
+    /// strict guarantee: require at least N bits of effective entropy
+    /// (exact for bech32(m), conservative for base58/base64, 4 bits/char
+    /// for hex); on violation: stderr error, non-zero exit, empty stdout
+    #[arg(short = 'm', long, value_name = "N")]
+    min_bits: Option<usize>,
+
+    /// strict guarantee: require the standard bech32(m) form
+    /// <hrp>1<payload><ck> — implies `-P r` when no -P is given
+    #[arg(long)]
+    standard: bool,
+
+    /// strict guarantee: require verifiable (checksummed) output — errors
+    /// when the length cannot carry the 6-char checksum or the format has
+    /// no checksum at all
+    #[arg(long)]
+    checksum: bool,
 
     /// omit trailing newline (pipe-friendly: azar -n | wl-copy)
     #[arg(short = 'n', long)]
@@ -189,12 +204,12 @@ fn main() {
 fn run(cli: &Cli) -> Result<String, Error> {
     let is_bech = matches!(cli.format, Format::Bech32m | Format::Bech32);
 
-    // ---- strict mode forces the standard (prefixed) form ----
+    // ---- the standard form forces the namespace HRP ----
     let hrp = if is_bech {
-        match (&cli.prefix, cli.strict) {
+        match (&cli.prefix, cli.standard) {
             // an explicitly empty -P is the same as no -P at all, so
-            // --strict still implies the standard `-r` namespace instead
-            // of silently emitting bare output while claiming strict
+            // --standard still implies the `-r` namespace instead of
+            // silently emitting bare output while claiming standard
             (Some(p), _) if !p.is_empty() => p.clone(),
             (_, true) => "r".to_string(),
             _ => String::new(), // bare
@@ -211,68 +226,120 @@ fn run(cli: &Cli) -> Result<String, Error> {
         return Err(Error::ZeroLength);
     }
 
-    // ---- entropy budget ----
+    // BIP-173 caps every bech32(m) string at 90 characters — a hard
+    // property of the standard, independent of the length branch below
+    if is_bech && cli.length.is_some_and(|l| l > BECH32_MAX_LEN) {
+        return Err(Error::TooLong {
+            total: cli.length.unwrap_or_default(),
+        });
+    }
+
+    // format impossibility wins before any length arithmetic: BIP-173
+    // defines no bare form for classic bech32 (it always needs an HRP)
+    if is_bech && !prefixed && cli.format == Format::Bech32 {
+        return Err(Error::NoBareForClassic);
+    }
+
+    // ---- strict flags: each enforces exactly ONE property and fails
+    // POSIX-style — message on stderr, non-zero exit, NOTHING on stdout,
+    // so a failing guarantee empties the pipe instead of corrupting it ----
+    if cli.standard && !is_bech {
+        return Err(Error::StandardUnsupported(format!("{:?}", cli.format)));
+    }
+    if cli.checksum {
+        match cli.format {
+            Format::Bech32m | Format::Bech32 => {
+                if let Some(l) = cli.length {
+                    let ck_ovh = if prefixed { overhead(&hrp) } else { 6 };
+                    if l <= ck_ovh {
+                        return Err(Error::ChecksumUnavailable {
+                            requested: l,
+                            minimum: ck_ovh + 1, // + 1 payload char
+                        });
+                    }
+                }
+            }
+            Format::Base58check => {
+                if cli.length.is_some() {
+                    // -l truncates base58check and voids its checksum
+                    return Err(Error::ChecksumVoided);
+                }
+            }
+            other => return Err(Error::ChecksumUnsupported(format!("{other:?}"))),
+        }
+    }
+    if let Some(required) = cli.min_bits {
+        let eff = effective_bits(cli, &hrp, prefixed, is_bech);
+        if eff < required {
+            return Err(Error::StrictEntropy {
+                effective_bits: eff,
+                required,
+            });
+        }
+    }
+
+    // ---- entropy budget (no -l requests) ----
     let bits_arg = match (cli.bits, cli.bytes) {
         (Some(b), _) => b,
         (None, Some(bytes)) => bytes * 8,
         (None, None) => 256,
     };
 
-    if cli.strict {
-        let eff = effective_bits(cli.length, &hrp, bits_arg);
-        if eff < 128 {
-            return Err(Error::StrictEntropy {
-                effective_bits: eff,
-            });
-        }
-    }
-
     // ---- per-format generation ----
     let token = match cli.format {
         Format::Bech32m | Format::Bech32 => {
-            // NOTE (pending operator ratification, review F5/D2): the
-            // checksum-less `plain` base32 path is REMOVED — every azar
-            // output is now checksummed and verifiable by its own
-            // `--verify`. Bare requests below the structural minimum
-            // (1 payload + 6 checksum = 7) are a clean error, never a
-            // checksum-less token.
-            let payload_symbols = if let Some(l) = cli.length {
-                if !prefixed {
-                    // bare + checksummed: overhead is just the 6-char checksum;
-                    // minimum is 1 payload + 6 checksum = 7, exactly the
-                    // verifier's structural floor (generate ⇔ verify consistent)
-                    l.checked_sub(6)
-                        .filter(|&t| t >= 1)
-                        .ok_or(Error::LengthTooSmall {
-                            requested: l,
-                            minimum: 7,
-                        })?
+            // Permissive default (operator-ratified 2026-10-03, review
+            // F5/D2): whenever the 6-char checksum FITS (>= 1 payload
+            // char — bare >= 7, prefixed >= overhead+1) the output is
+            // checksummed and verifiable; below that floor it is emitted
+            // checksum-less instead of erroring, so no requested length
+            // ever breaks a pipeline. --checksum turns this fallback into
+            // an error. The generator never emits a zero-payload token.
+            let ck_ovh = if prefixed { overhead(&hrp) } else { 6 };
+            if let Some(l) = cli.length {
+                if l > ck_ovh {
+                    // checksummed branch — payload >= 1, exactly what
+                    // --verify accepts (l == ck_ovh would be a ZERO
+                    // payload token: checksum of nothing, no entropy)
+                    let payload = l - ck_ovh;
+                    if !prefixed {
+                        bech32m_bare(payload)?
+                    } else if cli.format == Format::Bech32 {
+                        azar::bech32_classic_payload(&hrp, payload)?
+                    } else {
+                        bech32m_payload(&hrp, payload)?
+                    }
                 } else {
-                    let ovh = overhead(&hrp);
-                    l.checked_sub(ovh)
-                        .filter(|&t| t >= 2)
-                        .ok_or(Error::LengthTooSmall {
+                    // below the floor: checksum-less (permissive). The
+                    // prefix + separator must still fit >= 1 payload char.
+                    let plain_ovh = if prefixed { hrp.chars().count() + 1 } else { 0 };
+                    let plain_payload = l.checked_sub(plain_ovh).filter(|&t| t >= 1).ok_or(
+                        Error::LengthTooSmall {
                             requested: l,
-                            minimum: ovh + 2,
-                        })?
+                            minimum: plain_ovh + 1,
+                        },
+                    )?;
+                    if !prefixed {
+                        azar::base32_plain(plain_payload)?
+                    } else {
+                        azar::plain_prefixed(&hrp, plain_payload)?
+                    }
                 }
             } else {
-                bits_arg.div_ceil(5)
-            };
-            let total = payload_symbols + if prefixed { overhead(&hrp) } else { 6 };
-            if total > BECH32_MAX_LEN {
-                return Err(Error::TooLong { total });
-            }
-            if !prefixed {
-                // only bech32m has a defined bare form
-                if cli.format == Format::Bech32 {
-                    return Err(Error::NoBareForClassic);
+                // no -l: bit-budget request — always checksummed (the
+                // default 256-bit payload sits far above every floor)
+                let payload = bits_arg.div_ceil(5);
+                let total = payload + ck_ovh;
+                if total > BECH32_MAX_LEN {
+                    return Err(Error::TooLong { total });
                 }
-                bech32m_bare(payload_symbols)?
-            } else if cli.format == Format::Bech32 {
-                azar::bech32_classic_payload(&hrp, payload_symbols)?
-            } else {
-                bech32m_payload(&hrp, payload_symbols)?
+                if !prefixed {
+                    bech32m_bare(payload)?
+                } else if cli.format == Format::Bech32 {
+                    azar::bech32_classic_payload(&hrp, payload)?
+                } else {
+                    bech32m_payload(&hrp, payload)?
+                }
             }
         }
         Format::Base58 => base58(target_len(cli)?, false)?,
@@ -286,6 +353,41 @@ fn run(cli: &Cli) -> Result<String, Error> {
         (Some(p), false) => format!("{p}{token}"),
         _ => token,
     })
+}
+
+/// Effective entropy of what the generator will actually emit, per
+/// format: exact 5 bits/char for the bech32(m) payload, 4 for hex,
+/// ~6 for base64 (conservative min), a conservative floor for base58
+/// (log2(58) ~ 5.86). Without -l the requested budget (-b/-B/default
+/// 256) is what --min-bits sees.
+fn effective_bits(cli: &Cli, hrp: &str, prefixed: bool, is_bech: bool) -> usize {
+    let Some(l) = cli.length else {
+        return match (cli.bits, cli.bytes) {
+            (Some(b), _) => b,
+            (None, Some(bytes)) => bytes * 8,
+            (None, None) => 256,
+        };
+    };
+    if is_bech {
+        let ck_ovh = if prefixed { overhead(hrp) } else { 6 };
+        let plain_ovh = if prefixed { hrp.chars().count() + 1 } else { 0 };
+        // checksummed whenever it fits (checksum chars carry no entropy);
+        // every printed char is payload on the plain path below the floor
+        if l > ck_ovh {
+            5 * (l - ck_ovh)
+        } else {
+            5 * l.saturating_sub(plain_ovh)
+        }
+    } else {
+        let prefix_len = cli.prefix.as_ref().map_or(0, |p| p.chars().count());
+        let t = l.saturating_sub(prefix_len);
+        match cli.format {
+            Format::Hex => 4 * t,
+            Format::Base64 => (6 * t).min(8 * (t * 3).div_ceil(4)),
+            Format::Base58 | Format::Base58check => 5 * t,
+            Format::Bech32m | Format::Bech32 => 0, // unreachable: is_bech
+        }
+    }
 }
 
 fn target_len(cli: &Cli) -> Result<Option<usize>, Error> {

@@ -9,18 +9,23 @@
 //! character (`bytes_to_fes().take(n)` — the crate's zero-padding only
 //! applies AFTER the n-th symbol), so requested lengths are EXACT.
 //!
-//! Every output carries a checksum: requests below the structural minimum
-//! are a clean error, never a checksum-less token. `--verify` accepts
-//! exactly what the generator emits, so `azar -l N | azar --verify`
-//! holds for every N the generator accepts.
+//! Checksummed output whenever the length allows it (>= 1 payload char
+//! plus the 6-char checksum: bare >= 7, prefixed >= overhead + 1); below
+//! that floor the CLI's PERMISSIVE default (operator-ratified 2026-10-03)
+//! falls back to checksum-less output rather than erroring, so no length
+//! breaks a pipeline. Every CHECKSUMMED output verifies:
+//! `azar -l N | azar --verify` holds for every checksummed N, and the
+//! CLI's `--checksum` flag restores "everything verifies" as opt-in.
 //!
 //! BIP-173 requires a human-readable part of 1-83 characters for *decoder*
 //! compatibility, but nothing in the checksum itself needs one. azar's
 //! default output is therefore BARE: `<payload><checksum6>` with NO prefix
 //! (checksum computed over the data alone, exactly BIP-350's
 //! `bech32m_create_checksum(hrp="", ...)`). A namespace HRP is opt-in via
-//! `-P`; `--strict` forces the standard (prefixed) form. `--verify` accepts
-//! both bare and standard forms.
+//! `-P`; `--standard` forces the standard (prefixed) form. `--verify`
+//! accepts both bare and standard forms and stays BIP-faithful (official
+//! vectors included): it validates well-formedness, not entropy — use
+//! `--min-bits` for the entropy guarantee.
 
 use bech32::primitives::iter::{ByteIterExt, Checksummed, Fe32IterExt};
 use bech32::{Bech32, Bech32m, Fe32, Hrp};
@@ -33,8 +38,19 @@ pub const BECH32_MAX_LEN: usize = 90;
 pub enum Error {
     /// Requested length cannot fit the structural overhead.
     LengthTooSmall { requested: usize, minimum: usize },
-    /// Effective entropy below the strict threshold (128 bits).
-    StrictEntropy { effective_bits: usize },
+    /// `--min-bits` floor not met.
+    StrictEntropy {
+        effective_bits: usize,
+        required: usize,
+    },
+    /// `--checksum` requested but the length cannot carry the checksum.
+    ChecksumUnavailable { requested: usize, minimum: usize },
+    /// `--checksum` requested for a format that has no checksum.
+    ChecksumUnsupported(String),
+    /// `--checksum` with `-f base58check -l`: truncation voids the check.
+    ChecksumVoided,
+    /// `--standard` requested for a non-bech32(m) format.
+    StandardUnsupported(String),
     /// Request exceeds the BIP-173 90-character maximum.
     TooLong { total: usize },
     /// HRP outside BIP-173 validity (empty, non-ASCII, > 83 chars...).
@@ -59,8 +75,27 @@ impl fmt::Display for Error {
             Error::LengthTooSmall { requested, minimum } => {
                 write!(f, "length {requested} is below the minimum {minimum}")
             }
-            Error::StrictEntropy { effective_bits } => {
-                write!(f, "strict mode requires >= 128 bits (got {effective_bits})")
+            Error::StrictEntropy {
+                effective_bits,
+                required,
+            } => write!(
+                f,
+                "--min-bits requires >= {required} bits of entropy (got {effective_bits})"
+            ),
+            Error::ChecksumUnavailable { requested, minimum } => write!(
+                f,
+                "length {requested} cannot carry the 6-char checksum (minimum {minimum}); drop --checksum or raise -l"
+            ),
+            Error::ChecksumUnsupported(fmt) => write!(
+                f,
+                "format {fmt} has no checksum; --checksum applies to bech32m and base58check"
+            ),
+            Error::ChecksumVoided => write!(
+                f,
+                "--checksum with -f base58check: -l truncates and voids the check; drop -l"
+            ),
+            Error::StandardUnsupported(fmt) => {
+                write!(f, "--standard applies to bech32(m) only (got {fmt})")
             }
             Error::TooLong { total } => {
                 write!(
@@ -78,7 +113,10 @@ impl fmt::Display for Error {
             ),
             Error::BadCharset => write!(f, "input contains characters outside the bech32 charset"),
             Error::EmptyInput => write!(f, "empty input: expected at least one token"),
-            Error::ZeroLength => write!(f, "zero-length request: -l/-b/-B must be >= 1"),
+            Error::ZeroLength => write!(
+                f,
+                "zero-length request: output must be at least 1 character (-l/-b/-B >= 1)"
+            ),
             Error::RangeInvalid { min, max } => {
                 write!(f, "invalid range: min {min} > max {max}")
             }
@@ -256,14 +294,29 @@ fn matches_checksum<Ck: bech32::Checksum>(h: &Hrp, fes: &[Fe32], expected: &str)
         == expected
 }
 
-/// Effective entropy accounting shared by the CLI (bech32m only): every
-/// printed character outside the structural overhead carries 5 bits.
-#[must_use]
-pub fn effective_bits(length: Option<usize>, prefix: &str, bits: usize) -> usize {
-    match length {
-        Some(l) => 5 * l.saturating_sub(overhead(prefix)),
-        None => bits,
+/// Checksum-less base32 of exactly `n` payload characters — the CLI's
+/// PERMISSIVE path for lengths below the 6-char checksum floor. Output
+/// carries NO checksum and is deliberately NOT accepted by
+/// [`verify_bech32m`]; the CLI's `--checksum` flag forbids this path.
+pub fn base32_plain(n: usize) -> Result<String, Error> {
+    if n == 0 {
+        return Err(Error::ZeroLength);
     }
+    let bytes = entropy_bytes((n * 5).div_ceil(8))?;
+    Ok(bytes
+        .into_iter()
+        .bytes_to_fes()
+        .take(n)
+        .map(Fe32::to_char)
+        .collect())
+}
+
+/// Checksum-less prefixed shape `<hrp>1<payload>` — the permissive path
+/// below the prefixed checksum floor. HRP validated exactly like the
+/// checksummed path; output is NOT verifiable by design.
+pub fn plain_prefixed(hrp: &str, n: usize) -> Result<String, Error> {
+    parse_hrp(hrp)?;
+    Ok(format!("{hrp}1{}", base32_plain(n)?))
 }
 
 /// base58 / base58check token. Without a length target this is plain
