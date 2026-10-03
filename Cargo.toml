@@ -1,6 +1,6 @@
 [package]
 name = "azar"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "Random identifier generator: bech32m (BIP-350), base58, base64, hex"
 license = "MIT"

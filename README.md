@@ -3,7 +3,7 @@
 <img src="assets/banner.jpeg" alt="azar — hidden in the grid" width="100%">
 
 [![CI](https://github.com/aficiomaquinas/azar/actions/workflows/ci.yml/badge.svg)](https://github.com/aficiomaquinas/azar/actions/workflows/ci.yml)
-[![release](https://github.com/aficiomaquinas/azar/actions/workflows/release.yml/badge.svg)](https://github.com/aficiomaquinas/azar/releases/tag/v0.1.0)
+[![release](https://github.com/aficiomaquinas/azar/actions/workflows/release.yml/badge.svg)](https://github.com/aficiomaquinas/azar/releases/latest)
 ![Crates.io](https://img.shields.io/crates/v/azar)
 [![Latest release](https://img.shields.io/github/v/release/aficiomaquinas/azar)](https://github.com/aficiomaquinas/azar/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
