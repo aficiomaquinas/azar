@@ -47,10 +47,12 @@ default.
   `/dev/urandom` via the standard library path).
 - Length sampling is **bit-level**: exactly 5 entropy bits per output
   character, so `--length N` is **exactly N characters, always**.
-- **Every output is checksummed and verifiable**: requests below the
-  structural minimum (7 chars bare = 1 payload + 6 checksum; more with
-  `-P`) are a clean error, never a checksum-less token — so
-  `azar -l N | azar --verify` holds for every N the generator accepts.
+- **Checksummed whenever the length allows**: 6-char checksum + at least
+  1 payload char (bare >= 7, prefixed >= `overhead + 1`), so
+  `azar -l N | azar --verify` holds for every checksummed output.
+  Shorter requests are still produced — checksum-less and NOT verifiable
+  (permissive default: no length breaks a pipe); `--checksum` turns that
+  fallback into an error instead.
 - Charset excludes `1`, `b`, `i`, `o` (visual ambiguity) and is all-lower:
   safe for double-click, URLs, and voice.
 
@@ -86,7 +88,7 @@ azar                                 # BARE bech32m: <payload><ck6>, 256-bit (58
 azar -l 12                           # exactly 12 chars, bare + checksum
 azar -l 7 -n | wl-copy               # shortest verifiable token (1 char + 6 ck)
 azar -P r32                          # namespace: r321<payload><ck6> (standard form)
-azar -s                              # strict: standard form + >= 128 bits
+azar -m 128 --standard --checksum   # strict guarantees: entropy, form, verifiability
 azar -f bech32 -P legacy             # classic BIP-173 checksum (needs -P)
 azar -f base58 -l 15                 # base58 / base58check / base64 / hex
 azar -f hex -l 7                     # odd lengths exact
@@ -96,6 +98,24 @@ echo "<token>" | azar --verify       # validates bare AND standard forms
 Note: `-f base58check` computes its checksum over the whole payload —
 combining it with `-l` truncates to length and voids that checksum. Omit
 `-l` when the check must hold.
+
+### Strict guarantees (opt-in)
+
+The default is deliberately **permissive**: `azar -l 4` prints 4
+characters and never breaks a pipeline. What the default does NOT
+guarantee is documented here and in `--help`, and every guarantee is its
+own flag:
+
+| flag | guarantees | on violation |
+|---|---|---|
+| `-m N` / `--min-bits N` | effective entropy >= N bits (exact for bech32(m), 4 bits/char for hex, conservative for base58/base64) | stderr + exit 1, empty stdout |
+| `--standard` | standard `<hrp>1<payload><ck>` form — bech32(m) only | stderr + exit 1, empty stdout |
+| `--checksum` | verifiable output: rejects lengths that cannot carry the checksum and formats without one (incl. `base58check` with `-l`) | stderr + exit 1, empty stdout |
+
+Failures are POSIX-conformant: message on stderr, non-zero exit status,
+nothing on stdout — a failing strict flag empties the pipe instead of
+corrupting it. `--verify` itself stays BIP-faithful (it validates
+well-formedness, not entropy): pair it with `--min-bits` for guarantees.
 
 ## Coin flips & random integers (pipe-first, bash-native)
 
@@ -122,11 +142,13 @@ v=$(azar -R -10 -2)
 seq 1 5 | xargs -I{} azar --flip
 ```
 
-Effective entropy with `-l` is 5 bits per payload char (the 6 checksum
-chars carry none); `--strict` enforces >= 128 effective bits and the
-standard (prefixed) form. Runtime errors go to stderr with exit code 1;
-CLI usage errors (unknown flags, malformed arguments) exit 2, and
-`--verify` exits 0 only when every token verifies.
+Effective entropy with `-l` is 5 bits per bech32 payload char (checksum
+chars carry none; below the checksum floor every char is payload).
+Guarantees are opt-in: `-m/--min-bits N` enforces >= N effective bits,
+`--standard` the standard prefixed form, `--checksum` verifiable output.
+Runtime errors go to stderr with exit code 1; CLI usage errors (unknown
+flags, malformed arguments) exit 2, and `--verify` exits 0 only when
+every token verifies.
 
 ## Shell wrappers
 
