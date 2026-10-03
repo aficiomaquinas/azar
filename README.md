@@ -93,10 +93,16 @@ azar -f hex -l 7                     # odd lengths exact
 echo "<token>" | azar --verify       # validates bare AND standard forms
 ```
 
+Note: `-f base58check` computes its checksum over the whole payload —
+combining it with `-l` truncates to length and voids that checksum. Omit
+`-l` when the check must hold.
+
 ## Coin flips & random integers (pipe-first, bash-native)
 
 `--flip` prints exactly `true` or `false` — the strings `test`/`if` consume
-directly. `-R MIN MAX` prints one uniform integer (rejection-sampled on the
+directly. If the CSPRNG fails it exits non-zero with an error on stderr
+instead of fabricating a result, so a failure is detectable via `$?`.
+`-R MIN MAX` prints one uniform integer (rejection-sampled on the
 CSPRNG, no modulo bias). Both verified against bash **and** zsh.
 
 ```bash
@@ -118,7 +124,9 @@ seq 1 5 | xargs -I{} azar --flip
 
 Effective entropy with `-l` is 5 bits per payload char (the 6 checksum
 chars carry none); `--strict` enforces >= 128 effective bits and the
-standard (prefixed) form. All errors go to stderr with exit code 1.
+standard (prefixed) form. Runtime errors go to stderr with exit code 1;
+CLI usage errors (unknown flags, malformed arguments) exit 2, and
+`--verify` exits 0 only when every token verifies.
 
 ## Shell wrappers
 
