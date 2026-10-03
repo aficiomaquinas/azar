@@ -18,11 +18,11 @@ wrappers around it.
 
 ## Why this exists
 
-Every secret generator today is a compromise: web tools (blind trust in a
-supply chain you cannot audit — and your secret leaving the machine), shell
-one-liners gluing `openssl rand` (charset foot-guns, wrapping bugs, nothing
-testable), or libraries that answer a different question (UUID/ULID/KSUID
-solve *sortable identity*, not secrets).
+Common ways to generate a secret each carry a trade-off: web tools
+(blind trust in a supply chain you cannot audit — and your secret leaving
+the machine), shell one-liners gluing `openssl rand` (charset foot-guns,
+wrapping bugs, nothing testable), and libraries that answer a different
+question (UUID/ULID/KSUID solve *sortable identity*, not secrets).
 
 **Don't roll your own crypto — and don't outsource your secrets to a webui
 either.** The checksum and charset machinery comes from the rust-bitcoin
