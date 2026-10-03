@@ -56,7 +56,13 @@ default.
 
 ## Install
 
-Preferred — via cargo (git until the crates.io release is cut):
+Preferred — via cargo, straight from crates.io:
+
+```bash
+cargo install azar
+```
+
+Optionally, from git instead:
 
 ```bash
 cargo install --git https://github.com/aficiomaquinas/azar
