@@ -86,7 +86,8 @@ struct Cli {
     lore: bool,
 
     /// one fair coin flip: prints "true" or "false" (bash-native — usable
-    /// directly in if/&&/||). See README for piping examples.
+    /// directly in if/&&/||); exits 1 with an error if the CSPRNG fails,
+    /// never fabricating a result. See README for piping examples.
     #[arg(long)]
     flip: bool,
 
@@ -111,7 +112,13 @@ fn main() {
     }
 
     if cli.flip {
-        println!("{}", flip_str(azar::flip()));
+        match azar::flip() {
+            Ok(v) => println!("{}", flip_str(v)),
+            Err(e) => {
+                eprintln!("azar: {e}");
+                std::process::exit(1);
+            }
+        }
         return;
     }
 
@@ -185,9 +192,12 @@ fn run(cli: &Cli) -> Result<String, Error> {
     // ---- strict mode forces the standard (prefixed) form ----
     let hrp = if is_bech {
         match (&cli.prefix, cli.strict) {
-            (Some(p), _) => p.clone(),
-            (None, true) => "r".to_string(),
-            (None, false) => String::new(), // bare
+            // an explicitly empty -P is the same as no -P at all, so
+            // --strict still implies the standard `-r` namespace instead
+            // of silently emitting bare output while claiming strict
+            (Some(p), _) if !p.is_empty() => p.clone(),
+            (_, true) => "r".to_string(),
+            _ => String::new(), // bare
         }
     } else {
         cli.prefix.clone().unwrap_or_default()
@@ -209,7 +219,7 @@ fn run(cli: &Cli) -> Result<String, Error> {
     };
 
     if cli.strict {
-        let eff = effective_bits(cli.length, &hrp, bits_arg, false);
+        let eff = effective_bits(cli.length, &hrp, bits_arg);
         if eff < 128 {
             return Err(Error::StrictEntropy {
                 effective_bits: eff,
@@ -224,7 +234,7 @@ fn run(cli: &Cli) -> Result<String, Error> {
             // checksum-less `plain` base32 path is REMOVED — every azar
             // output is now checksummed and verifiable by its own
             // `--verify`. Bare requests below the structural minimum
-            // (2 payload + 6 checksum) are a clean error, never a
+            // (1 payload + 6 checksum = 7) are a clean error, never a
             // checksum-less token.
             let payload_symbols = if let Some(l) = cli.length {
                 if !prefixed {

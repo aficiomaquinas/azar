@@ -97,11 +97,14 @@ fn entropy_bytes(n: usize) -> Result<Vec<u8>, Error> {
 }
 
 /// One fair coin flip from the OS CSPRNG: 50/50, no modulo bias.
-#[must_use]
-pub fn flip() -> bool {
+/// Entropy failure is returned as [`Error::Entropy`] — never panicked and
+/// never fabricated, so callers see the failure instead of a silent wrong
+/// answer (in `if [ "$(azar --flip)" = true ]` a panic would read as
+/// `false`).
+pub fn flip() -> Result<bool, Error> {
     let mut b = [0u8; 1];
-    getrandom::fill(&mut b).expect("CSPRNG unavailable");
-    b[0] & 1 == 1
+    getrandom::fill(&mut b).map_err(|e| Error::Entropy(e.to_string()))?;
+    Ok(b[0] & 1 == 1)
 }
 
 /// Uniform random integer in [`min`, `max`] INCLUSIVE, via rejection
@@ -183,18 +186,6 @@ pub fn bech32m_bare(payload_symbols: usize) -> Result<String, Error> {
     )
 }
 
-/// Generate a plain base32 string (NO checksum) of exactly `n` characters,
-/// for casual non-cryptographic identifiers.
-pub fn base32_plain(n: usize) -> Result<String, Error> {
-    let bytes = entropy_bytes((n * 5).div_ceil(8))?;
-    Ok(bytes
-        .into_iter()
-        .bytes_to_fes()
-        .take(n)
-        .map(Fe32::to_char)
-        .collect())
-}
-
 /// Verify a bech32(m) string. Two forms are accepted:
 /// * standard `<hrp>1<payload><checksum6>`: HRP non-empty (BIP-173), valid
 ///   charset and checksum under either variant;
@@ -265,11 +256,11 @@ fn matches_checksum<Ck: bech32::Checksum>(h: &Hrp, fes: &[Fe32], expected: &str)
         == expected
 }
 
-/// Effective entropy accounting shared by the CLI (bech32m only).
+/// Effective entropy accounting shared by the CLI (bech32m only): every
+/// printed character outside the structural overhead carries 5 bits.
 #[must_use]
-pub fn effective_bits(length: Option<usize>, prefix: &str, bits: usize, plain: bool) -> usize {
+pub fn effective_bits(length: Option<usize>, prefix: &str, bits: usize) -> usize {
     match length {
-        Some(l) if plain => 5 * l,
         Some(l) => 5 * l.saturating_sub(overhead(prefix)),
         None => bits,
     }
