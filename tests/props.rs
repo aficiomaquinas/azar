@@ -10,10 +10,11 @@ proptest! {
     #[test]
     fn bech32m_bare_totals_are_exact(l in 7usize..=84) {
         // bech32m_bare takes PAYLOAD symbols; total = payload + 6 checksum.
-        // regression F5: the floor is 7 (1 payload + 6 checksum) — exactly
-        // the verifier's structural minimum, so generate ⇔ verify holds at
-        // every generatable length. Below 7 nothing is generated at all
-        // (the old checksum-less `plain` path is gone).
+        // regression F5 at the LIB level: the checksummed generator's floor
+        // is 7 (1 payload + 6 checksum) — exactly the verifier's structural
+        // minimum, so generate ⇔ verify holds at every CHECKSUMMED length.
+        // Below 7 the CLI takes its permissive plain path (checksum-less,
+        // not verifiable); this entry point stays checksummed-only.
         let s = bech32m_bare(l - 6)?;
         prop_assert_eq!(s.chars().count(), l);
         prop_assert!(!s.contains('1'));
